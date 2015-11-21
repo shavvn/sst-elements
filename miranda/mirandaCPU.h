@@ -27,11 +27,15 @@ namespace Miranda {
 
 class CPURequest {
 public:
-	CPURequest(const uint64_t origID) :
-		originalID(origID), issueTime(0), outstandingParts(0) {}
+        /** Takes ownership of 'req' */
+	CPURequest(GeneratorRequest *req) :
+		originalID(req->getRequestID()), issueTime(0), outstandingParts(0),
+		originalReq(req) {}
+	~CPURequest() { delete originalReq; }
 	void incPartCount() { outstandingParts++; }
 	void decPartCount() { outstandingParts--; }
 	bool completed() const { return 0 == outstandingParts; }
+        void finish() { originalReq->finish(); }
 	void setIssueTime(const uint64_t now) { issueTime = now; }
 	uint64_t getIssueTime() const { return issueTime; }
 	uint64_t getOriginalReqID() const { return originalID; }
@@ -40,6 +44,7 @@ protected:
 	uint64_t originalID;
 	uint64_t issueTime;
 	uint32_t outstandingParts;
+	GeneratorRequest *originalReq;
 };
 
 class RequestGenCPU : public SST::Component {

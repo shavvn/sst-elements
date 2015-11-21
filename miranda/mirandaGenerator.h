@@ -34,11 +34,15 @@ static uint64_t nextGeneratorRequestID = 0;
 
 class GeneratorRequest {
 public:
-	GeneratorRequest() {
+	typedef std::function<void(void)> finish_cb_t;
+
+	GeneratorRequest() : callback(NULL) {
 		reqID = nextGeneratorRequestID++;
 	}
 
-	virtual ~GeneratorRequest() {}
+	virtual ~GeneratorRequest() {
+		if ( callback ) delete callback;
+	}
 	virtual ReqOperation getOperation() const = 0;
 	uint64_t getRequestID() const { return reqID; }
 
@@ -72,10 +76,24 @@ public:
 	void setIssueTime(const uint64_t now) {
 		issueTime = now;
 	}
+
+	/* Calls any callbacks */
+	void finish() {
+		if ( callback ) {
+			(*callback)();
+		}
+	}
+
+	void setCallback( finish_cb_t *cb ) {
+		if ( callback ) delete callback;
+		callback = cb;
+	}
+
 protected:
 	uint64_t reqID;
 	uint64_t issueTime;
 	std::vector<uint64_t> dependsOn;
+	finish_cb_t *callback;
 };
 
 template<typename QueueType>
@@ -180,10 +198,13 @@ public:
 	bool isWrite() const { return op == WRITE; }
 	uint64_t getAddress() const { return addr; }
 	uint64_t getLength() const { return length; }
+	void setAtomic() { atomic=true; }
+	bool isAtomic() const { return atomic; }
 
 protected:
 	uint64_t addr;
 	uint64_t length;
+	bool atomic;
 	ReqOperation op;
 };
 

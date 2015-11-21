@@ -170,6 +170,7 @@ void RequestGenCPU::handleEvent( Interfaces::SimpleMem::Request* ev) {
 				pendingRequests.at(i)->satisfyDependency(cpuReq->getOriginalReqID());
 			}
 
+			cpuReq->finish();
 			delete cpuReq;
 		}
 
@@ -193,6 +194,9 @@ void RequestGenCPU::issueRequest(MemoryOpRequest* req) {
 	}
 
 	if(lineOffset + reqLength > cacheLine) {
+		if ( req->isAtomic() ) {
+			out->verbose(CALL_INFO, 0, 0, "WARNING: Atomic requests spanning cache lines are not atmoic.\n");
+		}
 		// Request is for a split operation (i.e. split over cache lines)
 		const uint64_t lowerLength = cacheLine - lineOffset;
 		const uint64_t upperLength = reqLength - lowerLength;
@@ -218,7 +222,7 @@ void RequestGenCPU::issueRequest(MemoryOpRequest* req) {
 			isRead ? SimpleMem::Request::Read : SimpleMem::Request::Write,
 			upperAddress, upperLength);
 
-		CPURequest* newCPUReq = new CPURequest(req->getRequestID());
+		CPURequest* newCPUReq = new CPURequest(req);
 		newCPUReq->incPartCount();
 		newCPUReq->incPartCount();
 		newCPUReq->setIssueTime(getCurrentSimTimeNano());
@@ -241,11 +245,12 @@ void RequestGenCPU::issueRequest(MemoryOpRequest* req) {
 		}
 	} else {
 		// This is not a split laod, i.e. issue in a single transaction
+		uint32_t flags = req->isAtomic() ? SimpleMem::Request::F_LLSC : 0;
 		SimpleMem::Request* request = new SimpleMem::Request(
 			isRead ? SimpleMem::Request::Read : SimpleMem::Request::Write,
-			reqAddress, reqLength);
+			reqAddress, reqLength, flags);
 
-		CPURequest* newCPUReq = new CPURequest(req->getRequestID());
+		CPURequest* newCPUReq = new CPURequest(req);
 		newCPUReq->incPartCount();
 		newCPUReq->setIssueTime(getCurrentSimTimeNano());
 
@@ -344,7 +349,6 @@ bool RequestGenCPU::clockTick(SST::Cycle_t cycle) {
                                                 MemoryOpRequest* memOpReq = dynamic_cast<MemoryOpRequest*>(nxtRq);
                                                 issueRequest(memOpReq);
 
-                                                delete nxtRq;
                                         } else {
                                                 out->verbose(CALL_INFO, 4, 0, "Request %" PRIu64 " in queue, has dependencies which are not satisfied, wait.\n",
                                                         nxtRq->getRequestID());
