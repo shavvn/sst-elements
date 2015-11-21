@@ -252,7 +252,7 @@ void RequestGenCPU::issueRequest(MemoryOpRequest* req) {
 		}
 	} else {
 		// This is not a split laod, i.e. issue in a single transaction
-		uint32_t flags = req->isAtomic() ? SimpleMem::Request::F_LLSC : 0;
+		uint32_t flags = req->isAtomic() ? SimpleMem::Request::F_LOCKED : 0;
 		SimpleMem::Request* request = new SimpleMem::Request(
 			isRead ? SimpleMem::Request::Read : SimpleMem::Request::Write,
 			reqAddress, reqLength, flags);

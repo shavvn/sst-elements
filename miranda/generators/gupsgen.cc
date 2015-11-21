@@ -21,7 +21,7 @@ using namespace SST::Miranda;
 #if defined(DO_VERIFY)
 static std::vector<uint64_t> verifyData;
 #define VERIFY(addr, v) \
-    if (verifyData[addr] != v) fprintf(stderr, "Expected %llu @ 0x%llx. Got %llu\n", verifyData[addr], addr, v)
+    if (verifyData[addr] != v) out->verbose(CALL_INFO, 4, 0, "Expected %llu @ 0x%llx. Got %llu\n", verifyData[addr], addr, v)
 #define UPDATE(addr, v) verifyData[addr] = v
 #endif
 
@@ -30,7 +30,9 @@ GUPSGenerator::GUPSGenerator( Component* owner, Params& params ) :
 
 	const uint32_t verbose = (uint32_t) params.find_integer("verbose", 0);
 
-	out = new Output("GUPSGenerator[@p:@l]: ", verbose, 0, Output::STDOUT);
+    char prefix[128];
+    snprintf(prefix, 127, "GUPSGenerator(%s)[@p:@l]: ", owner->getName().c_str());
+	out = new Output(prefix, verbose, 0, Output::STDOUT);
 
 	iterations = (uint64_t) params.find_integer("iterations", 1);
 	issueCount = ((uint64_t) params.find_integer("count", 1000)) * iterations;
