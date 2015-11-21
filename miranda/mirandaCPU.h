@@ -40,6 +40,7 @@ public:
 	uint64_t getIssueTime() const { return issueTime; }
 	uint64_t getOriginalReqID() const { return originalID; }
 	uint32_t countParts() const { return outstandingParts; }
+        GeneratorRequest* getOriginalRequest() const { return originalReq; }
 protected:
 	uint64_t originalID;
 	uint64_t issueTime;
@@ -63,6 +64,7 @@ private:
 	void handleEvent( SimpleMem::Request* ev );
 	bool clockTick( SST::Cycle_t );
 	void issueRequest(MemoryOpRequest* req);
+        void satisfyDependencies(uint64_t id);
 
     	Output* out;
 

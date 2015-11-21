@@ -166,10 +166,15 @@ void RequestGenCPU::handleEvent( Interfaces::SimpleMem::Request* ev) {
 				cpuReq->getOriginalReqID(), (getCurrentSimTimeNano() - cpuReq->getIssueTime()));
 
 			// Notify every pending request that there may be a satisfied dependency
-			for(uint32_t i = 0; i < pendingRequests.size(); ++i) {
-				pendingRequests.at(i)->satisfyDependency(cpuReq->getOriginalReqID());
+			satisfyDependencies(cpuReq->getOriginalReqID());
+
+			/* Hacky way to propagate any response from memory */
+			if ( !ev->data.empty() ) {
+			    MemoryOpRequest *mor = dynamic_cast<MemoryOpRequest*>(cpuReq->getOriginalRequest());
+			    if ( mor ) mor->setPayload(ev->data);
 			}
 
+			/* Call any registered callback */
 			cpuReq->finish();
 			delete cpuReq;
 		}
@@ -222,6 +227,8 @@ void RequestGenCPU::issueRequest(MemoryOpRequest* req) {
 			isRead ? SimpleMem::Request::Read : SimpleMem::Request::Write,
 			upperAddress, upperLength);
 
+		/* TODO:  Set payloads */
+
 		CPURequest* newCPUReq = new CPURequest(req);
 		newCPUReq->incPartCount();
 		newCPUReq->incPartCount();
@@ -249,6 +256,9 @@ void RequestGenCPU::issueRequest(MemoryOpRequest* req) {
 		SimpleMem::Request* request = new SimpleMem::Request(
 			isRead ? SimpleMem::Request::Read : SimpleMem::Request::Write,
 			reqAddress, reqLength, flags);
+
+		if ( !req->getPayload().empty() )
+		    request->setPayload(req->getPayload());
 
 		CPURequest* newCPUReq = new CPURequest(req);
 		newCPUReq->incPartCount();
@@ -323,6 +333,7 @@ bool RequestGenCPU::clockTick(SST::Cycle_t cycle) {
 					if(0 == requestsInFlight.size()) {
                                                	out->verbose(CALL_INFO, 4, 0, "Fence operation completed, no pending requests, will be retired.\n");
 
+						satisfyDependencies(nxtRq->getRequestID());
 						// Keep record we will delete fence at i
 						delReqs.push_back(i);
 
@@ -368,3 +379,11 @@ bool RequestGenCPU::clockTick(SST::Cycle_t cycle) {
 
 	return false;
 }
+
+
+void RequestGenCPU::satisfyDependencies(uint64_t id) {
+    for ( uint32_t s = 0 ; s < pendingRequests.size() ; s++ ) {
+	pendingRequests.at(s)->satisfyDependency(id);
+    }
+}
+

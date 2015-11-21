@@ -41,7 +41,9 @@ private:
 	SSTRandom* rng;
 	Output*  out;
 	bool issueOpFences;
+        bool atomic;
 
+        void doIncrement(MemoryOpRequest *read, MemoryOpRequest *write);
 };
 
 }

@@ -32,17 +32,17 @@ typedef enum {
 
 static uint64_t nextGeneratorRequestID = 0;
 
+static void dummy_callback() { }
+
 class GeneratorRequest {
 public:
 	typedef std::function<void(void)> finish_cb_t;
 
-	GeneratorRequest() : callback(NULL) {
+	GeneratorRequest() : callback(dummy_callback) {
 		reqID = nextGeneratorRequestID++;
 	}
 
-	virtual ~GeneratorRequest() {
-		if ( callback ) delete callback;
-	}
+	virtual ~GeneratorRequest() { }
 	virtual ReqOperation getOperation() const = 0;
 	uint64_t getRequestID() const { return reqID; }
 
@@ -79,13 +79,10 @@ public:
 
 	/* Calls any callbacks */
 	void finish() {
-		if ( callback ) {
-			(*callback)();
-		}
+		callback();
 	}
 
-	void setCallback( finish_cb_t *cb ) {
-		if ( callback ) delete callback;
+	void setCallback( finish_cb_t cb ) {
 		callback = cb;
 	}
 
@@ -93,7 +90,7 @@ protected:
 	uint64_t reqID;
 	uint64_t issueTime;
 	std::vector<uint64_t> dependsOn;
-	finish_cb_t *callback;
+	finish_cb_t callback;
 };
 
 template<typename QueueType>
@@ -200,12 +197,21 @@ public:
 	uint64_t getLength() const { return length; }
 	void setAtomic() { atomic=true; }
 	bool isAtomic() const { return atomic; }
+	void setPayload(std::vector<uint8_t> &p) { payload = p; }
+
+	template<typename T>
+	void setPayload(T p) { payload.resize(sizeof(T)); memcpy(payload.data(), &p, sizeof(T)); }
+
+	const std::vector<uint8_t>& getPayload() { return payload; }
+	template<typename T>
+	const T getPayload() { return *(T*)payload.data(); }
 
 protected:
 	uint64_t addr;
 	uint64_t length;
 	bool atomic;
 	ReqOperation op;
+	std::vector<uint8_t> payload;
 };
 
 class FenceOpRequest : public GeneratorRequest {
