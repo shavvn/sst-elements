@@ -15,8 +15,8 @@ comp_cpu.addParams({
 	"clock" : "2.4GHz",
 	"generatorParams.verbose" : 0,
 	"generatorParams.count" : 128,
-    "generatorParams.max_address" : 64,
-    "generatorParams.use_atomics" : "yes",
+        "generatorParams.max_address" : 512*1024,
+        "generatorParams.use_atomics" : "no",
 	"printStats" : 1,
 })
 

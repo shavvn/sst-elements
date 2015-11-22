@@ -41,9 +41,28 @@ private:
 	SSTRandom* rng;
 	Output*  out;
 	bool issueOpFences;
-        bool atomic;
+    bool atomic;
+    bool doVerify;
+    std::function<void(MemoryOpRequest *, MemoryOpRequest*)> callback;
+    std::vector<uint64_t> verifyData;
 
-        void doIncrement(MemoryOpRequest *read, MemoryOpRequest *write);
+    template <typename T>
+    void doIncrement(MemoryOpRequest *read, MemoryOpRequest *write)
+    {
+        uint64_t addr = read->getAddress();
+        T val = read->getPayload<T>();
+        uint64_t idx = addr / sizeof(T);
+
+        if ( doVerify ) {
+            if ( verifyData[idx] != val )
+                out->fatal(CALL_INFO, -1,
+                        "@ 0x%" PRIx64 ", loaded unexpected value!\n", addr);
+
+            verifyData[idx] = val + 1;
+        }
+
+        write->setPayload(val + 1);
+    }
 };
 
 }

@@ -17,13 +17,6 @@
 
 using namespace SST::Miranda;
 
-#define DO_VERIFY 1
-#if defined(DO_VERIFY)
-static std::vector<uint64_t> verifyData;
-#define VERIFY(addr, v) \
-    if (verifyData[addr] != v) out->verbose(CALL_INFO, 4, 0, "Expected %llu @ 0x%llx. Got %llu\n", verifyData[addr], addr, v)
-#define UPDATE(addr, v) verifyData[addr] = v
-#endif
 
 GUPSGenerator::GUPSGenerator( Component* owner, Params& params ) :
 	RequestGenerator(owner, params) {
@@ -47,10 +40,34 @@ GUPSGenerator::GUPSGenerator( Component* owner, Params& params ) :
 
 	issueOpFences = params.find_string("issue_op_fences", "yes") == "yes";
 	atomic = params.find_string("use_atomics", "no") == "yes";
+	doVerify = params.find_string("do_verify", "no") == "yes";
 
-#if defined(DO_VERIFY)
-	verifyData.resize(maxAddr);
-#endif
+    if ( doVerify )
+        verifyData.resize(maxAddr / reqLength, 0);
+
+    if ( doVerify || atomic ) {
+        switch ( reqLength ) {
+        case 8:
+            callback = std::bind(&GUPSGenerator::doIncrement<uint64_t>, this,
+                    std::placeholders::_1, std::placeholders::_2);
+            break;
+        case 4:
+            callback = std::bind(&GUPSGenerator::doIncrement<uint32_t>, this,
+                    std::placeholders::_1, std::placeholders::_2);
+            break;
+        case 2:
+            callback = std::bind(&GUPSGenerator::doIncrement<uint16_t>, this,
+                    std::placeholders::_1, std::placeholders::_2);
+            break;
+        case 1:
+            callback = std::bind(&GUPSGenerator::doIncrement<uint8_t>, this,
+                    std::placeholders::_1, std::placeholders::_2);
+            break;
+        default:
+            out->fatal(CALL_INFO, -1, "Cannot verify or do atomics on size %" PRIu64 " variables (length)\n", reqLength);
+
+        }
+    }
 }
 
 GUPSGenerator::~GUPSGenerator() {
@@ -67,21 +84,25 @@ void GUPSGenerator::generate(MirandaRequestQueue<GeneratorRequest*>* q) {
 
 	out->verbose(CALL_INFO, 4, 0, "Generating next request number: %" PRIu64 " at address 0x%" PRIx64 "\n", issueCount, addr);
 
+	if ( issueOpFences ) {
+	    FenceOpRequest *fence = new FenceOpRequest();
+	    readAddr->addDependency(fence->getRequestID());
+	    q->push_back(fence);
+	}
+
+
 	MemoryOpRequest* readAddr = new MemoryOpRequest(addr, reqLength, READ);
 	MemoryOpRequest* writeAddr = new MemoryOpRequest(addr, reqLength, WRITE);
 
 	writeAddr->addDependency(readAddr->getRequestID());
 
+    if ( atomic || doVerify ) {
+        readAddr->setCallback(std::bind(callback, readAddr, writeAddr));
+    }
+
 	if ( atomic ) {
 	    readAddr->setAtomic();
 	    writeAddr->setAtomic();
-	    readAddr->setCallback(std::bind(&GUPSGenerator::doIncrement, this, readAddr, writeAddr));
-	}
-
-	if ( issueOpFences ) {
-	    FenceOpRequest *fence = new FenceOpRequest();
-	    readAddr->addDependency(fence->getRequestID());
-	    q->push_back(fence);
 	}
 
 	q->push_back(readAddr);
@@ -98,24 +119,4 @@ void GUPSGenerator::completed() {
 
 }
 
-void GUPSGenerator::doIncrement(MemoryOpRequest *read, MemoryOpRequest *write)
-{
-    static int cnt = 0;
-    out->verbose(CALL_INFO, 4, 0,
-	    "Cycle %d: Increment 0x%" PRIx64 " from %" PRIu64 " to %" PRIu64"\n",
-	    cnt, read->getAddress(), read->getPayload<uint64_t>(), read->getPayload<uint64_t>()+1);
-#if defined(DO_VERIFY)
-	VERIFY(read->getAddress(), read->getPayload<uint64_t>());
-	UPDATE(read->getAddress(), read->getPayload<uint64_t>()+1);
-#endif
-    switch ( reqLength ) {
-    case 8: write->setPayload(read->getPayload<uint64_t>() + 1); break;
-    case 4: write->setPayload(read->getPayload<uint32_t>() + 1); break;
-    case 2: write->setPayload(read->getPayload<uint16_t>() + 1); break;
-    case 1: write->setPayload(read->getPayload<uint8_t>() + 1);  break;
-    default:
-	out->fatal(CALL_INFO, -1, "Unable to do increments on size %" PRIu64 "\n", reqLength);
-    }
-    cnt++;
-}
 

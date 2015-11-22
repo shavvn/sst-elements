@@ -1,5 +1,5 @@
 import sst
-import getopt
+import sys,getopt
 
 
 # Tell SST what statistics handling we want
@@ -16,8 +16,12 @@ coreNetBW = "36GB/s"
 memNetBW = "36GB/s"
 xbarBW = coreNetBW
 flit_size = "72B"
-memDebug = 0
+memDebug = 7
 clock = "2.4GHz"
+use_atomics = "yes"
+do_fence = "no"
+do_verify = "yes"
+
 
 router = sst.Component("router", "merlin.hr_router")
 router.addParams({"topology": "merlin.singlerouter",
@@ -73,14 +77,16 @@ def doQuad(num):
         # Define the simulation components
         comp_cpu = sst.Component("cpu", "miranda.BaseCPU")
         comp_cpu.addParams({
-	        "verbose" : 0,
-	        "generator" : "miranda.GUPSGenerator",
-	        "clock" : clock,
-	        "generatorParams.verbose" : 4,
-	        "generatorParams.count" : nIncr,
+            "verbose" : 0,
+            "generator" : "miranda.GUPSGenerator",
+            "clock" : clock,
+            "generatorParams.verbose" : 0,
+            "generatorParams.count" : nIncr,
             "generatorParams.max_address" : max_address,
-            "generatorParams.use_atomics" : "yes",
-	        "printStats" : 1,
+            "generatorParams.use_atomics" : use_atomics,
+            "generatorParams.issue_op_fances" : do_fence,
+            "generatorParams.verify" : do_verify,
+            "printStats" : 1,
         })
     
         # Enable statistics outputs
@@ -88,17 +94,17 @@ def doQuad(num):
         
         comp_l1cache = sst.Component("l1cache", "memHierarchy.Cache")
         comp_l1cache.addParams({
-            "access_latency_cycles" : "2",
+            "access_latency_cycles" : 2,
             "cache_frequency" : clock,
             "replacement_policy" : "lru",
             "coherence_protocol" : coherence_protocol,
-            "associativity" : "4",
-            "cache_line_size" : "64",
+            "associativity" : 4,
+            "cache_line_size" : 64,
             "prefetcher" : "cassini.StridePrefetcher",
-            "debug" : "1",
-            "low_network_links" : "1",
-            "statistics" : "1",
-            "L1" : "1",
+            "debug": memDebug,
+            "low_network_links" : 1,
+            "statistics" : 1,
+            "L1" : 1,
             "cache_size" : "32KB"
         })
         link_cpu_cache_link = sst.Link("link_cpu_cache_link%d"%cpu)
@@ -112,6 +118,8 @@ def doQuad(num):
     
     sst.popNamePrefix()
 
+
+# Build quads
 for q in range(nQuads):
     doQuad(q)
 
