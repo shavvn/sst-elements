@@ -56,7 +56,8 @@ typedef enum HMC_Type_enum {
     HMC_COMP_greater=15,
     HMC_COMP_less=16,
     HMC_COMP_equal=17,
-    NUM_HMC_TYPES=18
+    HMC_CANDIDATE=20,           // Not a HMC-op, it is showing if an instruction could be HMC in other scenarios
+    NUM_HMC_TYPES=21
 } HMC_Type;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -86,18 +87,19 @@ public:
      * @param isWrite is it a write?
      * @param addr address for memory operation
      */
-    transaction_c() : isWrite(false), addr(0), isAtomic(false), hmcType(HMC_NONE), hmcOpState(NO_STATE), flagPrintDbgHMC(0) {}
+    transaction_c() : isWrite(false), addr(0), isAtomic(false), hmcType(HMC_NONE), transactionId(0), hmcOpState(NO_STATE), flagPrintDbgHMC(0) {}
 
     transaction_c(bool _isWrite, uint64_t _addr) : 
-        isWrite(_isWrite), addr(_addr), isAtomic(false), hmcType(HMC_NONE), hmcOpState(NO_STATE), flagPrintDbgHMC(0) {}
+        isWrite(_isWrite), addr(_addr), isAtomic(false), hmcType(HMC_NONE), transactionId(0), hmcOpState(NO_STATE), flagPrintDbgHMC(0) {}
 
     /** 
-     * addr functions 
+     * addr Member Fuctions
      */
     uint64_t getAddr() { return addr; }
+    void setAddr( uint64_t addr_) { addr = addr_; }
 
     /** 
-     * isWrite functions      
+     * isWrite Member Fuctions     
      */
     bool getIsWrite() { return isWrite; }
     void setIsWrite() { isWrite = true; }
@@ -109,6 +111,12 @@ public:
     bool getAtomic() { return isAtomic; }
     void setAtomic() { isAtomic = true; }
     void resetAtomic() { isAtomic = false; }
+
+    /**
+     * transactionId Member Functions
+     */
+    void setTransId(uint64_t transactionId_) { transactionId = transactionId_; }
+    uint64_t getTransId() { return transactionId; }
 
     /** 
      * HMC_Type functions
@@ -153,6 +161,8 @@ public:
             return "HMC_COMP_less";
         case HMC_COMP_equal:
             return "HMC_COMP_equal";
+        case HMC_CANDIDATE:
+            return "HMC_CANDIDATE";
         default:
             return "THIS MUST NOT BE PRINTED";
         }
@@ -161,7 +171,7 @@ public:
     /**
      * HMC_Op_State functions
      */
-    /*void setHmcOpState(HMC_Op_State instState) { hmcOpState = instState; }
+    void setHmcOpState(HMC_Op_State instState) { hmcOpState = instState; }
 
     HMC_Op_State getHmcOpState() { return hmcOpState; }
 
@@ -182,7 +192,7 @@ public:
         case WRITE_ANS_RECV:
             return "WRITE_ANS_RECV";
         }
-    }*/
+    }
 
     /**
      * BankNo functions
@@ -205,6 +215,9 @@ private:
     bool isAtomic;
     uint8_t hmcType;              //HMC_Type Enum
 
+    //Transaction Support
+    uint64_t transactionId;
+
     //stats
     HMC_Op_State hmcOpState;
     bool flagPrintDbgHMC;
@@ -213,8 +226,9 @@ public:
     //stats
     uint64_t inCycle;
     uint64_t issueCycle;
-    uint64_t readDoneCycle;       // Same as write issue cycle (without computing)
-    uint64_t writeDoneCycle;      // Same as done cycle
+    uint64_t readDoneCycle;
+    uint64_t writeDoneCycle;
+    
 };
 
 #endif

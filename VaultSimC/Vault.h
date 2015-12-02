@@ -12,11 +12,12 @@
 #ifndef VAULT_H
 #define VAULT_H
 
-#include <string.h>
-#include <iomanip>
-#include <iostream>
+#include <cstring>
+#include <string>
 #include <unordered_map>
+#include <set>
 #include <vector>
+#include <list>
 #include <sstream>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
@@ -30,13 +31,15 @@
 #include "callback_hmc.h"
 
 #include <DRAMSim.h>
+#include <AddressMapping.h>
 
 using namespace std;
 using namespace SST;
 
-#define ON_FLY_HMC_OP_OPTIMUM_SIZE 2
-#define BANK_BOOL_MAP_OPTIMUM_SIZE 10
+#define ON_FLY_HMC_OP_OPTIMUM_SIZE 10
 #define TRANS_Q_OPTIMUM_SIZE 10
+
+//#define MAX_BANK_SIZE                   // FIXME: used for mapping (rank,bank) pair to a single number
 
 class Vault : public SubComponent {
 private:
@@ -123,7 +126,7 @@ private:
     inline void unlockBank(unsigned bankId) { bankBusyMap[bankId] = false; }
     inline void lockBank(unsigned bankId) { bankBusyMap[bankId] = true; }
     inline void unlockAllBanks() {
-        for (unsigned i = 0; i < BANK_BOOL_MAP_OPTIMUM_SIZE; i++) {
+        for (unsigned i = 0; i < BANK_SIZE_OPTIMUM; i++) {
             bankBusyMap[i] = false;
         }
     }
@@ -131,29 +134,13 @@ private:
     /** 
      * Compute Phase Functions 
      */
-    inline bool getComputePhase(unsigned bankId) { return computePhaseMap[bankId]; }
-    inline unsigned getComputePhaseSize() { return computePhaseMap.size(); }
-    inline void setComputePhase(unsigned bankId) { computePhaseMap[bankId] = true; }
-    inline void resetComputePhase(unsigned bankId) { computePhaseMap[bankId] = false; }
-    inline void resetAllComputePhase() {
-        for (unsigned i = 0; i < BANK_BOOL_MAP_OPTIMUM_SIZE; i++) {
-            computePhaseMap[i] = false;
-        }
-    }
-
     inline void setComputeDoneCycle(unsigned bankId, uint64_t cycle) { computeDoneCycleMap[bankId] = cycle; }
     inline uint64_t getComputeDoneCycle(unsigned bankId) { return computeDoneCycleMap[bankId]; }
+    inline void eraseComputeDoneCycle(unsigned bankId) { computeDoneCycleMap.erase(bankId); }
 
     inline void setAddrCompute(unsigned bankId, uint64_t addr) { addrComputeMap[bankId] = addr; }
     inline uint64_t getAddrCompute(unsigned bankId) { return addrComputeMap[bankId]; }
-
-    /**
-     *  Stats
-     */
-    // Helper function for printing statistics in MacSim format
-    template<typename T>
-    void writeTo(ofstream &ofs, string prefix, string name, T count);
-    void printStatsForMacSim();
+    inline void eraseAddrCompute(unsigned bankId) { addrComputeMap.erase(bankId); }
 
 public:
     unsigned id;
@@ -162,9 +149,12 @@ public:
     callback_t *readCallback;
     callback_t *writeCallback;
 
-    DRAMSim::MultiChannelMemorySystem *memorySystem;
+    
 
 private:
+    DRAMSim::MultiChannelMemorySystem *memorySystem;
+    int bankMappingScheme;
+
     //Debugs
     Output dbg;                                  // VaulSimC wrapper dbg, for printing debuging commands
     Output out;                                  // VaulSimC wrapper output, for printing always printed info and stats
@@ -172,13 +162,10 @@ private:
     int dbgOnFlyHmcOpsIsOn;                      // For debuggung late onFlyHMC ops (bool variable)
     int dbgOnFlyHmcOpsThresh;                    // For debuggung late onFlyHMC ops (threshhold Value)
 
-    //Stat Format
-    int statsFormat;                             // Type of Stat output 0:Defualt 1:Macsim (Default Value is set to 0)
-
     addr2TransactionMap_t onFlyHmcOps;           // Currently issued atomic ops
     bank2BoolMap_t bankBusyMap;                  // Current Busy Banks
     transQ_t transQ;                             // Transaction Queue
-    bank2BoolMap_t computePhaseMap;              // Current Compute Phase Insturctions (same size as bankBusyMap)
+    list<unsigned> computePhaseEnabledBanks;     // Current Compute Phase Insturctions (same size as bankBusyMap)
     bank2CycleMap_t computeDoneCycleMap;         // Current Compute Done Cycle ((same size as bankBusyMap)
     bank2AddrMap_t addrComputeMap;
 
@@ -197,6 +184,8 @@ private:
     Statistic<uint64_t>* statTotalTransactions;
     Statistic<uint64_t>* statTotalHmcOps;
     Statistic<uint64_t>* statTotalNonHmcOps;
+    Statistic<uint64_t>* statTotalHmcCandidate;
+    Statistic<uint64_t>* statTotalHmcConfilictHappened;
 
     Statistic<uint64_t>* statTotalNonHmcRead;
     Statistic<uint64_t>* statTotalNonHmcWrite;
@@ -206,12 +195,12 @@ private:
     Statistic<uint64_t>* statReadHmcLatency;
     Statistic<uint64_t>* statWriteHmcLatency;
 
-    // internal stats
+    /* internal stats */
+    // HMC Latency
     uint64_t statTotalHmcLatencyInt;   //statapi does not provide any non-collection type addData (ORno documentation)
     uint64_t statIssueHmcLatencyInt;
     uint64_t statReadHmcLatencyInt;
     uint64_t statWriteHmcLatencyInt;
-
 
 };
 #endif

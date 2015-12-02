@@ -36,12 +36,6 @@ VaultSimC::VaultSimC(ComponentId_t id, Params& params) : IntrospectedComponent( 
     std::string frequency = "1.0 GHz";
     frequency = params.find_string("clock", "1.0 Ghz");
 
-    // number of bits to determine vault address
-    int nv2 = params.find_integer("numVaults2", -1);
-    if (-1 == nv2) 
-        dbg.fatal(CALL_INFO, -1, "numVaults2 not set! should be log2(number of vaults per cube)\n");
-    numVaults2 = nv2;
-
     memChan = configureLink("bus");     //link delay is configurable by python scripts
 
     int vid = params.find_integer("vault.id", -1);
@@ -63,6 +57,8 @@ VaultSimC::VaultSimC(ComponentId_t id, Params& params) : IntrospectedComponent( 
 
     memorySystem->registerCallback(readDataCB, writeDataCB);
     dbg.output(CALL_INFO, "VaultSimC %u: made vault %u\n", vaultID, vaultID);
+
+    CacheLineSize = params.find_integer("cacheLineSize", 64);
 }
 
 void VaultSimC::finish() 
@@ -126,7 +122,7 @@ bool VaultSimC::clock(Cycle_t currentCycle)
         //dbg.output(CALL_INFO, "transType=%d addr=%p\n", transType, (void*)event->getAddr());
 
         // save the memEvent eventID based on addr so we can respond to it correctly
-        transactionToMemEventMap.insert(pair<uint64_t, MemHierarchy::MemEvent*>(event->getAddr(), event));
+        transactionToMemEventMap.insert(pair<uint64_t, MemHierarchy::MemEvent*>(event->getAddr() & ~((uint64_t)CacheLineSize-1), event));
 
         bool isWrite = false;
         switch(event->getCmd()) {
@@ -143,18 +139,19 @@ bool VaultSimC::clock(Cycle_t currentCycle)
         }
 
         // add to the Q
-        transaction_c transaction (isWrite, event->getAddr());
+        transaction_c transaction (isWrite, event->getAddr() & ~((uint64_t)CacheLineSize-1));
 
         #ifdef USE_VAULTSIM_HMC
-        if (event->getHMCInstType() == HMC_NONE) {
+        uint8_t HMCTypeEvent = event->getHMCInstType();
+        transaction.setHmcOpType(HMCTypeEvent);
+        if (HMCTypeEvent == HMC_NONE || HMCTypeEvent == HMC_CANDIDATE) {
             transaction.resetAtomic();
-            dbg.debug(_L6_, "VaultSimC %d got a req for %p in clock=%lu (%lu %d)\n", 
-                    vaultID, (void*)event->getAddr(), currentCycle, event->getID().first, event->getID().second);
-        } 
+            dbg.debug(_L6_, "VaultSimC %d got a req for %p of type %s in clock=%lu\n", 
+                    vaultID, (void *)transaction.getAddr(), transaction.getHmcOpTypeStr(), currentCycle);
+        }
         else {
             transaction.setAtomic();
-            transaction.resetIsWrite(); //FIXME: all hmc ops come as read. true?
-            transaction.setHmcOpType(event->getHMCInstType());
+            transaction.setIsWrite();   //all hmc ops treat as write
             dbg.debug(_L6_, "VaultSimC %d got an atomic req for %p of type %s in clock=%lu\n", 
                     vaultID, (void *)transaction.getAddr(), transaction.getHmcOpTypeStr(), currentCycle);
         }

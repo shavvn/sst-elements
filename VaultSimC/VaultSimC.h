@@ -34,7 +34,7 @@ void writeTo(ofstream &ofs, string prefix, string name, uint64_t count);
 class VaultSimC : public IntrospectedComponent {
 private:
     typedef SST::Link memChan_t;
-    typedef multimap<uint64_t, MemHierarchy::MemEvent*> t2MEMap_t;
+    typedef multimap<uint64_t, MemHierarchy::MemEvent*> t2MEMap_t;      // Why multimap? a single address could be associatet to multiple events
 
 public:
     /** 
@@ -79,11 +79,12 @@ private:
 private:
     deque<transaction_c> transQ;
     t2MEMap_t transactionToMemEventMap; // maps original MemEvent to a Vault transaction ID
+
     Vault *memorySystem;
+    uint64_t CacheLineSize;             // it is used to send stripped address to DRAMSim2
 
     uint8_t *memBuffer;
     memChan_t *memChan;
-    size_t numVaults2;  // not clear if used
     int numOutstanding; //number of mem requests outstanding (non-phx)
     unsigned vaultID;
 

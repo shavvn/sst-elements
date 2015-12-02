@@ -10,7 +10,6 @@
 // distribution.
 
 #include <string>
-#include <AddressMapping.h>
 #include "Vault.h"
 
 using namespace std;
@@ -34,8 +33,6 @@ Vault::Vault(Component *comp, Params &params) : SubComponent(comp)
         if (-1 == dbgOnFlyHmcOpsThresh)
             dbg.fatal(CALL_INFO, -1, "vault.debug_OnFlyHmcOpsThresh is set to 1, definition of vault.debug_OnFlyHmcOpsThresh is required as well");
     }
-
-    statsFormat = params.find_integer("statistics_format", 0);
 
     // HMC Cost Initialization
     HMCCostLogicalOps = params.find_integer("HMCCost_LogicalOps", 0);
@@ -80,29 +77,37 @@ Vault::Vault(Component *comp, Params &params) : SubComponent(comp)
 
     memorySystem->RegisterCallbacks(readDataCB, writeDataCB, NULL);
 
+    bankMappingScheme = 0;
+    #ifdef USE_VAULTSIM_HMC
+        bankMappingScheme = params.find_integer("bank_MappingScheme", 0);
+        out.output("*Vault%u: bankMappingScheme %d\n", id, bankMappingScheme);
+    #endif
+
     // etc Initialization
     onFlyHmcOps.reserve(ON_FLY_HMC_OP_OPTIMUM_SIZE);
-    bankBusyMap.reserve(BANK_BOOL_MAP_OPTIMUM_SIZE);
-    computePhaseMap.reserve(BANK_BOOL_MAP_OPTIMUM_SIZE);
-    computeDoneCycleMap.reserve(BANK_BOOL_MAP_OPTIMUM_SIZE);
+    bankBusyMap.reserve(BANK_SIZE_OPTIMUM);
+    computeDoneCycleMap.reserve(BANK_SIZE_OPTIMUM);
+    addrComputeMap.reserve(BANK_SIZE_OPTIMUM);
     unlockAllBanks();
     transQ.reserve(TRANS_Q_OPTIMUM_SIZE);
-    resetAllComputePhase();
 
     currentClockCycle = 0;
 
     // Stats Initialization
-    statTotalTransactions = registerStatistic<uint64_t>("TOTAL_TRANSACTIONS", "0");  
-    statTotalHmcOps       = registerStatistic<uint64_t>("TOTAL_HMC_OPS", "0");
-    statTotalNonHmcOps    = registerStatistic<uint64_t>("TOTAL_NON_HMC_OPS", "0");
+    statTotalTransactions = registerStatistic<uint64_t>("Total_transactions", "0");  
+    statTotalHmcOps       = registerStatistic<uint64_t>("Total_hmc_ops", "0");
+    statTotalNonHmcOps    = registerStatistic<uint64_t>("Total_non_hmc_ops", "0");
+    statTotalHmcCandidate = registerStatistic<uint64_t>("Total_candidate_hmc_ops", "0");
 
-    statTotalNonHmcRead   = registerStatistic<uint64_t>("TOTAL_NON_HMC_READ", "0");
-    statTotalNonHmcWrite  = registerStatistic<uint64_t>("TOTAL_NON_HMC_WRITE", "0");
+    statTotalHmcConfilictHappened = registerStatistic<uint64_t>("Total_hmc_confilict_happened", "0");
 
-    statTotalHmcLatency   = registerStatistic<uint64_t>("HMC_OPS_TOTAL_LATENCY", "0");
-    statIssueHmcLatency   = registerStatistic<uint64_t>("HMC_OPS_ISSUE_LATENCY", "0");
-    statReadHmcLatency    = registerStatistic<uint64_t>("HMC_OPS_READ_LATENCY", "0");
-    statWriteHmcLatency   = registerStatistic<uint64_t>("HMC_OPS_WRITE_LATENCY", "0");
+    statTotalNonHmcRead   = registerStatistic<uint64_t>("Total_non_hmc_read", "0");
+    statTotalNonHmcWrite  = registerStatistic<uint64_t>("Total_non_hmc_write", "0");
+
+    statTotalHmcLatency   = registerStatistic<uint64_t>("Hmc_ops_total_latency", "0");
+    statIssueHmcLatency   = registerStatistic<uint64_t>("Hmc_ops_issue_latency", "0");
+    statReadHmcLatency    = registerStatistic<uint64_t>("Hmc_ops_read_latency", "0");
+    statWriteHmcLatency   = registerStatistic<uint64_t>("Hmc_ops_write_latency", "0");
 
     statTotalHmcLatencyInt = 0;
     statIssueHmcLatencyInt = 0;
@@ -113,15 +118,16 @@ Vault::Vault(Component *comp, Params &params) : SubComponent(comp)
 void Vault::finish() 
 {
     dbg.debug(_L7_, "Vault %d finished\n", id);
-    //Print Statistics
-    if (statsFormat == 1)
-        printStatsForMacSim();
 }
 
 void Vault::readComplete(unsigned id, uint64_t addr, uint64_t cycle) 
 {
     // Check for atomic
+    #ifdef USE_VAULTSIM_HMC
     addr2TransactionMap_t::iterator mi = onFlyHmcOps.find(addr);
+    #else
+    addr2TransactionMap_t::iterator mi = onFlyHmcOps.end();
+    #endif
 
     // Not found in map, not atomic
     if (mi == onFlyHmcOps.end()) {
@@ -129,26 +135,30 @@ void Vault::readComplete(unsigned id, uint64_t addr, uint64_t cycle)
         (*readCallback)(id, addr, cycle);
         dbg.debug(_L7_, "Vault %d:hmc: Atomic op %p callback(read) @cycle=%lu\n", 
                 id, (void*)addr, cycle);
-    } else { 
+    } 
+    else { 
         // Found in atomic
         dbg.debug(_L8_, "Vault %d:hmc: Atomic op %p (bank%u) read req answer has been received @cycle=%lu\n", 
                 id, (void*)mi->second.getAddr(), mi->second.getBankNo(), cycle);
 
+        // Now in Compute Phase, set cycle done 
+        issueAtomicComputePhase(mi);
+        computePhaseEnabledBanks.push_back(mi->second.getBankNo());
+
         /* statistics */
         mi->second.readDoneCycle = currentClockCycle;
         // mi->second.setHmcOpState(READ_ANS_RECV);
-
-        // Now in Compute Phase, set cycle done 
-        // issueAtomicSecondMemoryPhase(mi);
-        issueAtomicComputePhase(mi);
-        setComputePhase(mi->second.getBankNo());
     }
 }
 
 void Vault::writeComplete(unsigned id, uint64_t addr, uint64_t cycle) 
 {
     // Check for atomic
+    #ifdef USE_VAULTSIM_HMC
     addr2TransactionMap_t::iterator mi = onFlyHmcOps.find(addr);
+    #else
+    addr2TransactionMap_t::iterator mi = onFlyHmcOps.end();
+    #endif
 
     // Not found in map, not atomic
     if (mi == onFlyHmcOps.end()) {
@@ -156,14 +166,15 @@ void Vault::writeComplete(unsigned id, uint64_t addr, uint64_t cycle)
         (*writeCallback)(id, addr, cycle);
         dbg.debug(_L7_, "Vault %d:hmc: Atomic op %p callback(write) @cycle=%lu\n", 
                 id, (void*)addr, cycle);
-    } else {
+    } 
+    else {
         // Found in atomic
         dbg.debug(_L8_, "Vault %d:hmc: Atomic op %p (bank%u) write answer has been received @cycle=%lu\n",
                 id, (void*)mi->second.getAddr(),  mi->second.getBankNo(), cycle);
 
         // mi->second.setHmcOpState(WRITE_ANS_RECV);
-        // return as a read since all hmc ops comes as read
-        (*readCallback)(id, addr, cycle);
+        // return as a write since all hmc ops comes as read
+        (*writeCallback)(id, addr, cycle);
         dbg.debug(_L7_, "Vault %d:hmc: Atomic op %p (bank%u) callback at cycle=%lu\n", 
                 id, (void*)mi->second.getAddr(), mi->second.getBankNo(), cycle);
 
@@ -191,18 +202,23 @@ void Vault::update()
     currentClockCycle++;  
     
     // If we are in compute phase, check for cycle compute done
-    for(unsigned bankId = 0; bankId < getComputePhaseSize(); bankId++) {
-        if (getComputePhase(bankId)) {
+    if (!computePhaseEnabledBanks.empty())
+        for(list<unsigned>::iterator it = computePhaseEnabledBanks.begin(); it != computePhaseEnabledBanks.end(); NULL) {
+            unsigned bankId = *it;
             if (currentClockCycle >= getComputeDoneCycle(bankId)) {
                 uint64_t addrCompute = getAddrCompute(bankId);
                 dbg.debug(_L8_, "Vault %d:hmc: Atomic op %p (bank%u) compute phase has been done @cycle=%lu\n", \
                         id, (void*)addrCompute, bankId, currentClockCycle);
                 addr2TransactionMap_t::iterator mi = onFlyHmcOps.find(addrCompute);
                 issueAtomicSecondMemoryPhase(mi);
-                resetComputePhase(bankId);
+
+                eraseAddrCompute(bankId);
+                eraseComputeDoneCycle(bankId); 
+                it = computePhaseEnabledBanks.erase(it);
             }
+            else
+                it++;
         }
-    }
 
     // Debug long hmc ops in Queue
     if (1 == dbgOnFlyHmcOpsIsOn)
@@ -222,16 +238,20 @@ void Vault::update()
 bool Vault::addTransaction(transaction_c transaction) 
 {
     unsigned newChan, newRank, newBank, newRow, newColumn;
-    DRAMSim::addressMapping(transaction.getAddr(), newChan, newRank, newBank, newRow, newColumn);
+    DRAMSim::addressMapping(transaction.getAddr(), newChan, newRank, newBank, newRow, newColumn); //FIXME: newRank * MAX_BANK_SIZE + newBank - Why not implemented: performance issues
+    if (bankMappingScheme == 1)
+        newBank = newRank * 2 + newBank;
     transaction.setBankNo(newBank);
-    // transaction.setHmcOpState(QUEUED);
-    
-    /* statistics */
     transaction.inCycle = currentClockCycle;
+
+    // transaction.setHmcOpState(QUEUED);
+
+    /* statistics & insert to Queue*/
     statTotalTransactions->addData(1);
     transQ.push_back(transaction);
 
     updateQueue();
+
     return true;
 }
 
@@ -259,7 +279,8 @@ void Vault::updateQueue()
                 /* statistics */
                 statTotalHmcOps->addData(1);
                 mi->second.issueCycle = currentClockCycle;
-            } else { // Not atomic op
+            } 
+            else { // Not atomic op
                 // Issue to DRAM
                 bool isWrite_ = transQ[i].getIsWrite();
                 memorySystem->addTransaction(isWrite_, transQ[i].getAddr());
@@ -275,9 +296,13 @@ void Vault::updateQueue()
                     statTotalNonHmcWrite->addData(1);
                 else
                     statTotalNonHmcRead->addData(1);
+                if (transQ[i].getHmcOpType() == HMC_CANDIDATE)
+                    statTotalHmcCandidate->addData(1);
                 
             }
         }
+        else
+            statTotalHmcConfilictHappened->addData(1);
     }
 }
 
@@ -304,12 +329,11 @@ void Vault::issueAtomicFirstMemoryPhase(addr2TransactionMap_t::iterator mi)
     case (HMC_COMP_greater):
     case (HMC_COMP_less):
     case (HMC_COMP_equal):
-        mi->second.resetIsWrite(); //FIXME: check if isWrite flag conceptioally is correct in hmc2 ops
-        if (mi->second.getIsWrite()) {
-            dbg.fatal(CALL_INFO, -1, "Atomic operation write flag should not be write\n");
+        if (!mi->second.getIsWrite()) {
+            dbg.fatal(CALL_INFO, -1, "Atomic operation write flag should be write\n");
         }
 
-        memorySystem->addTransaction(mi->second.getIsWrite(), mi->second.getAddr());
+        memorySystem->addTransaction(false, mi->second.getAddr());
         dbg.debug(_L8_, "Vault %d:hmc: Atomic op %p (bank%u) read req has been issued @cycle=%lu\n", 
                 id, (void*)mi->second.getAddr(), mi->second.getBankNo(), currentClockCycle);
         // mi->second.setHmcOpState(READ_ISSUED);
@@ -343,12 +367,11 @@ void Vault::issueAtomicSecondMemoryPhase(addr2TransactionMap_t::iterator mi)
     case (HMC_COMP_greater):
     case (HMC_COMP_less):
     case (HMC_COMP_equal):
-        mi->second.setIsWrite();
         if (!mi->second.getIsWrite()) {
             dbg.fatal(CALL_INFO, -1, "Atomic operation write flag should be write (2nd phase)\n");
         }
 
-        memorySystem->addTransaction(mi->second.getIsWrite(), mi->second.getAddr());
+        memorySystem->addTransaction(true, mi->second.getAddr());
         dbg.debug(_L8_, "Vault %d:hmc: Atomic op %p (bank%u) write has been issued (2nd phase) @cycle=%lu\n", 
                 id, (void*)mi->second.getAddr(), mi->second.getBankNo(), currentClockCycle);
         // mi->second.setHmcOpState(WRITE_ISSUED);
@@ -400,7 +423,7 @@ void Vault::issueAtomicComputePhase(addr2TransactionMap_t::iterator mi)
         computeDoneCycleMap[bankNoCompute] = currentClockCycle + HMCCostLogicalOps;
         break;
     case (HMC_FP_ADD):
-        computeDoneCycleMap[bankNoCompute] = currentClockCycle + HMCCostLogicalOps;
+        computeDoneCycleMap[bankNoCompute] = currentClockCycle + HMCCostFPAdd;
         break;
     case (HMC_COMP_greater):
     case (HMC_COMP_less):
@@ -412,62 +435,4 @@ void Vault::issueAtomicComputePhase(addr2TransactionMap_t::iterator mi)
         dbg.fatal(CALL_INFO, -1, "Vault Should not get a non HMC op in issue atomic (compute phase)\n");
         break;
     }
-}
-
-/*
-    Other Functions
-*/
-
-/*
- *  Print Macsim style output in a file
- **/
-
-void Vault::printStatsForMacSim() {
-    string name_ = "Vault" + to_string(id);
-    stringstream ss;
-    ss << name_.c_str() << ".stat.out";
-    string filename = ss.str();
-
-    ofstream ofs;
-    ofs.exceptions(std::ofstream::eofbit | std::ofstream::failbit | std::ofstream::badbit);
-    ofs.open(filename.c_str(), std::ios_base::out);
-
-    float avgHmcOpsLatencyTotal = (float)statTotalHmcLatency->getCollectionCount() / statTotalHmcOps->getCollectionCount();     //FIXME: this is wrong (getCollectionCount return #of elements)
-    float avgHmcOpsLatencyIssue = (float)statIssueHmcLatency->getCollectionCount() / statTotalHmcOps->getCollectionCount();     //FIXME: this is wrong (getCollectionCount return #of elements)
-    float avgHmcOpsLatencyRead  = (float)statReadHmcLatency->getCollectionCount() / statTotalHmcOps->getCollectionCount();      //FIXME: this is wrong (getCollectionCount return #of elements)
-    float avgHmcOpsLatencyWrite = (float)statWriteHmcLatency->getCollectionCount() / statTotalHmcOps->getCollectionCount();     //FIXME: this is wrong (getCollectionCount return #of elements)
-
-    float avgHmcOpsLatencyTotalInt = (float)statTotalHmcLatencyInt / statTotalHmcOps->getCollectionCount();
-    float avgHmcOpsLatencyIssueInt = (float)statIssueHmcLatencyInt / statTotalHmcOps->getCollectionCount();
-    float avgHmcOpsLatencyReadInt = (float)statReadHmcLatencyInt / statTotalHmcOps->getCollectionCount();
-    float avgHmcOpsLatencyWriteInt = (float)statWriteHmcLatencyInt / statTotalHmcOps->getCollectionCount();
-
-    writeTo(ofs, name_, string("total_trans"),                      statTotalTransactions->getCollectionCount());
-    writeTo(ofs, name_, string("total_HMC_ops"),                    statTotalHmcOps->getCollectionCount());
-    writeTo(ofs, name_, string("total_non_HMC_ops"),                statTotalNonHmcOps->getCollectionCount());
-    ofs << "\n";
-    writeTo(ofs, name_, string("total_non_HMC_read"),               statTotalNonHmcRead->getCollectionCount());
-    writeTo(ofs, name_, string("total_non_HMC_write"),              statTotalNonHmcWrite->getCollectionCount());
-    ofs << "\n";
-    writeTo(ofs, name_, string("avg_HMC_ops_latency_total"),        avgHmcOpsLatencyTotalInt);
-    writeTo(ofs, name_, string("avg_HMC_ops_latency_issue"),        avgHmcOpsLatencyIssueInt);
-    writeTo(ofs, name_, string("avg_HMC_ops_latency_read"),         avgHmcOpsLatencyReadInt);
-    writeTo(ofs, name_, string("avg_HMC_ops_latency_write"),        avgHmcOpsLatencyWriteInt);
-}
-
-
-// Helper function for printing statistics in MacSim format
-template<typename T>
-void Vault::writeTo(ofstream &ofs, string prefix, string name, T count)
-{
-    #define FILED1_LENGTH 45
-    #define FILED2_LENGTH 20
-    #define FILED3_LENGTH 30
-
-    ofs.setf(ios::left, ios::adjustfield);
-    string capitalized_prefixed_name = boost::to_upper_copy(prefix + "_" + name);
-    ofs << setw(FILED1_LENGTH) << capitalized_prefixed_name;
-
-    ofs.setf(ios::right, ios::adjustfield);
-    ofs << setw(FILED2_LENGTH) << count << setw(FILED3_LENGTH) << count << endl << endl;
 }

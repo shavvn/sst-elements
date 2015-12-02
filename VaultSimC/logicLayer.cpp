@@ -15,8 +15,6 @@
 #include <sst/core/link.h>
 #include <sst/core/params.h>
 
-#include <sst/elements/memHierarchy/memEvent.h>
-
 #include "logicLayer.h"
 
 using namespace SST::Interfaces;
@@ -50,7 +48,7 @@ logicLayer::logicLayer(ComponentId_t id, Params& params) : IntrospectedComponent
     bool terminal = params.find_integer("terminal", 0);
 
     // VaultSims Initializations (Links)
-    int numVaults = params.find_integer("vaults", -1);
+    numVaults = params.find_integer("vaults", -1);
     if (-1 == numVaults) 
         dbg.fatal(CALL_INFO, -1, " no vaults param defined for LogicLayer\n");
     // connect up our vaults
@@ -66,6 +64,9 @@ logicLayer::logicLayer(ComponentId_t id, Params& params) : IntrospectedComponent
             dbg.fatal(CALL_INFO, -1, " could not find %s\n", bus_name);
     }
     out.output("*LogicLayer%d: Connected %d Vaults\n", ident, numVaults);
+    #ifdef USE_VAULTSIM_HMC
+    out.output("*LogicLayer%d: Flag USE_VAULTSIM_HMC set\n", ident);
+    #endif
 
     // Connect Chain
     toCPU = configureLink("toCPU");
@@ -75,15 +76,28 @@ logicLayer::logicLayer(ComponentId_t id, Params& params) : IntrospectedComponent
         toMem = NULL;
     dbg.debug(_INFO_, "Made LogicLayer %d toMem:%p toCPU:%p\n", llID, toMem, toCPU);
 
+    bankMappingScheme = 0;
+    #ifdef USE_VAULTSIM_HMC
+        bankMappingScheme = params.find_integer("bank_MappingScheme", 0);
+        out.output("*LogicLayer%d: bankMappingScheme %d\n", ident, bankMappingScheme);
+    #endif
+
+    // etc
     std::string frequency;
     frequency = params.find_string("clock", "2.2 Ghz");
     registerClock(frequency, new Clock::Handler<logicLayer>(this, &logicLayer::clock));
     dbg.debug(_INFO_, "Making LogicLayer with id=%d & clock=%s\n", llID, frequency.c_str());
 
-    // Stats Initialization
-    statsFormat = params.find_integer("statistics_format", 0);
+    CacheLineSize = params.find_integer("cacheLineSize", 64);
+    CacheLineSizeLog2 = log(CacheLineSize) / log(2);
 
-    memOpsProcessed = registerStatistic<uint64_t>("Total_memory_ops_processed", "0");  
+    // Stats Initialization
+
+    memOpsProcessed = registerStatistic<uint64_t>("Total_memory_ops_processed", "0");
+    HMCOpsProcessed = registerStatistic<uint64_t>("HMC_ops_processed", "0");
+    HMCCandidateProcessed = registerStatistic<uint64_t>("Total_HMC_candidate_processed", "0");
+    HMCTransOpsProcessed = registerStatistic<uint64_t>("Total_HMC_transactions_processed", "0");
+
     reqUsedToCpu[0] = registerStatistic<uint64_t>("Req_recv_from_CPU", "0");  
     reqUsedToCpu[1] = registerStatistic<uint64_t>("Req_send_to_CPU", "0");
     reqUsedToMem[0] = registerStatistic<uint64_t>("Req_recv_from_Mem", "0");
@@ -93,12 +107,9 @@ logicLayer::logicLayer(ComponentId_t id, Params& params) : IntrospectedComponent
 void logicLayer::finish() 
 {
     dbg.debug(_INFO_, "Logic Layer %d completed %lu ops\n", llID, memOpsProcessed->getCollectionCount());
-    //Print Statistics
-    if (statsFormat == 1)
-        printStatsForMacSim();
 }
 
-bool logicLayer::clock(Cycle_t current) 
+bool logicLayer::clock(Cycle_t currentCycle) 
 {
     SST::Event* ev = NULL;
 
@@ -106,7 +117,7 @@ bool logicLayer::clock(Cycle_t current)
     int toMemory[2] = {0,0};    // {recv, send}
     int toCpu[2] = {0,0};       // {recv, send}
 
-    // 1)
+    // 1-c)
     /* Check For Events From CPU
      *     Check ownership, if owned send to internal vaults, if not send to another LogicLayer
      **/
@@ -116,9 +127,15 @@ bool logicLayer::clock(Cycle_t current)
         if (NULL == event)
             dbg.fatal(CALL_INFO, -1, "LogicLayer%d got bad event\n", llID);
 
+        // HMC Type verifications and stats
         #ifdef USE_VAULTSIM_HMC
-        if (event->getHMCInstType() >= NUM_HMC_TYPES)
+        uint8_t HMCTypeEvent = event->getHMCInstType();
+        if (HMCTypeEvent >= NUM_HMC_TYPES)
             dbg.fatal(CALL_INFO, -1, "LogicLayer%d got bad HMC type %d for address %p\n", llID, event->getHMCInstType(), (void*)event->getAddr());
+        if (HMCTypeEvent == HMC_CANDIDATE)
+            HMCCandidateProcessed->addData(1);
+        else if (HMCTypeEvent != HMC_NONE && HMCTypeEvent != HMC_CANDIDATE)
+            HMCOpsProcessed->addData(1);
         #endif
 
         toCpu[0]++;
@@ -126,10 +143,11 @@ bool logicLayer::clock(Cycle_t current)
 
         // (Multi LogicLayer) Check if it is for this LogicLayer
         if (isOurs(event->getAddr())) {
-            unsigned int vaultID = (event->getAddr() >> VAULT_SHIFT) % memChans.size();
-            dbg.debug(_L4_, "LogicLayer%d sends %p to vault @ %" PRIu64 "\n", llID, event, current);
-            memChans[vaultID]->send(event);      
+            unsigned int vaultID = (event->getAddr() >> CacheLineSizeLog2) % memChans.size();
+            memChans[vaultID]->send(event);
+            dbg.debug(_L4_, "LogicLayer%d sends %p to vault%u @ %" PRIu64 "\n", llID, (void*)event->getAddr(), vaultID, currentCycle);
         } 
+        // This event is not for this LogicLayer
         else {
             if (NULL == toMem) 
                 dbg.fatal(CALL_INFO, -1, "LogicLayer%d not sure what to do with %p...\n", llID, event);
@@ -163,19 +181,20 @@ bool logicLayer::clock(Cycle_t current)
     // 3)
     /* Check For Events From Vaults 
      *     and send them to CPU
+     *     Transaction Support: save all transaction until we know what to do with them (dump or restart)
      **/
-    for (memChans_t::iterator i = memChans.begin(); i != memChans.end(); ++i) {
-        memChan_t *m_memChan = *i;
+    unsigned j = 0;
+    for (memChans_t::iterator it = memChans.begin(); it != memChans.end(); ++it, ++j) {
+        memChan_t *m_memChan = *it;
         while ((ev = m_memChan->recv())) {
             MemEvent *event  = dynamic_cast<MemEvent*>(ev);
             if (event == NULL)
                 dbg.fatal(CALL_INFO, -1, "LogicLayer%d got bad event from vaults\n", llID);
-
             memOpsProcessed->addData(1);
             toCPU->send(event);
             toCpu[1]++;
             reqUsedToCpu[1]->addData(1);
-            dbg.debug(_L4_, "LogicLayer%d got an event %p from vault @ %" PRIu64 ", sends towards cpu\n", llID, event, current);
+            dbg.debug(_L4_, "LogicLayer%d got event %p from vault %u @%" PRIu64 ", sent towards cpu\n", llID, (void*)event->getAddr(), j, currentCycle);
         }    
     }
 
@@ -199,46 +218,3 @@ bool logicLayer::isOurs(unsigned int addr)
         return ((((addr >> LL_SHIFT) & LL_MASK) == llID) || (LL_MASK == 0));
 }
 
-
-/*
-    Other Functions
-*/
-
-/*
- *  Print Macsim style output in a file
- **/
-
-void logicLayer::printStatsForMacSim() {
-    string name_ = "LogicLayer" + to_string(llID);
-    stringstream ss;
-    ss << name_.c_str() << ".stat.out";
-    string filename = ss.str();
-
-    ofstream ofs;
-    ofs.exceptions(std::ofstream::eofbit | std::ofstream::failbit | std::ofstream::badbit);
-    ofs.open(filename.c_str(), std::ios_base::out);
-
-    writeTo(ofs, name_, string("total_memory_ops_processed"), memOpsProcessed->getCollectionCount());
-    ofs << "\n";
-    writeTo(ofs, name_, string("req_recv_from_CPU"), reqUsedToCpu[0]->getCollectionCount());
-    writeTo(ofs, name_, string("req_send_to_CPU"),   reqUsedToCpu[1]->getCollectionCount());
-    writeTo(ofs, name_, string("req_recv_from_Mem"), reqUsedToMem[0]->getCollectionCount());
-    writeTo(ofs, name_, string("req_send_to_Mem"),   reqUsedToMem[1]->getCollectionCount());
-}
-
-
-// Helper function for printing statistics in MacSim format
-template<typename T>
-void logicLayer::writeTo(ofstream &ofs, string prefix, string name, T count)
-{
-    #define FILED1_LENGTH 45
-    #define FILED2_LENGTH 20
-    #define FILED3_LENGTH 30
-
-    ofs.setf(ios::left, ios::adjustfield);
-    string capitalized_prefixed_name = boost::to_upper_copy(prefix + "_" + name);
-    ofs << setw(FILED1_LENGTH) << capitalized_prefixed_name;
-
-    ofs.setf(ios::right, ios::adjustfield);
-    ofs << setw(FILED2_LENGTH) << count << setw(FILED3_LENGTH) << count << endl << endl;
-}

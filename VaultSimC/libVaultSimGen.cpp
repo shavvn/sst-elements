@@ -29,6 +29,9 @@ const char *memEventList[] = {
 // Logiclayer
 static const ElementInfoStatistic logicLayer_statistics[] = {
   { "Total_memory_ops_processed", "Total memory ops processed", "reqs", 1},
+  { "HMC_ops_processed", "Total HMC ops processed", "reqs", 1},
+  { "Total_HMC_candidate_processed", "Total HMC Candidate (instruction that might be able to use HMC) ops processed", "reqs", 1},
+  { "Total_HMC_transactions_processed", "Total HMC Transaction ops processed", "reqs", 1},
   { "Req_recv_from_CPU", "Bandwidth used (recieves from the CPU by the LL) per cycle (in messages)", "reqs", 1},
   { "Req_send_to_CPU", "Bandwidth used (sends from the CPU by the LL) per cycle (in messages)", "reqs", 1},
   { "Req_recv_from_Mem", "Bandwidth used (recieves from other memories by the LL) per cycle (in messages)", "reqs", 1},
@@ -39,13 +42,14 @@ static const ElementInfoStatistic logicLayer_statistics[] = {
 static const ElementInfoParam logicLayer_params[] = {
   {"clock",              "Logic Layer Clock Rate."},
   {"llID",               "Logic Layer ID (Unique id within chain)"},
+  {"cacheLineSize",      "Optional, used to find mapping requests to Vaults", "64"},
   {"req_LimitPerCycle",  "Number of memory events which can be processed per cycle per link."},
+  {"bank_MappingScheme", "Mapping Scheme for banks (not accurate now)"},
   {"LL_MASK",            "Bitmask to determine 'ownership' of an address by a cube. A cube 'owns' an address if ((((addr >> LL_SHIFT) & LL_MASK) == llID) || (LL_MASK == 0)). LL_SHIFT is set in vaultGlobals.h and is 8 by default."},
   {"terminal",           "Is this the last cube in the chain?"},
   {"vaults",             "Number of vaults per cube."},
   {"debug",              "0 (default): No debugging, 1: STDOUT, 2: STDERR, 3: FILE."},
   {"debug_level",        "debug verbosity level (0-10)"},
-  {"statistics_format",  "Optional, Stats format. Options: 0[default], 1[MacSim]", "0"},
   { NULL, NULL }
 };
 
@@ -59,7 +63,7 @@ static const ElementInfoPort logicLayer_ports[] = {
 // VaultSimC
 static const ElementInfoParam VaultSimC_params[] = {
   {"clock",                           "Vault Clock Rate.", "1.0 Ghz"},
-  {"numVaults2",                      "Number of bits to determine vault address (i.e. log_2(number of vaults per cube))"},
+  {"cacheLineSize",                   "Optional, used to strip address bits for DRAMSim2", "64"},
   {"debug",                           "VaultSimC debug: 0 (default): No debugging, 1: STDOUT, 2: STDERR, 3: FILE."},
   {"debug_level",                     "VaultSimC debug verbosity level (0-10)"},
   {"statistics_format",               "Optional, Stats format. Options: 0[default], 1[MacSim]", "0"},
@@ -69,6 +73,7 @@ static const ElementInfoParam VaultSimC_params[] = {
   {"vault.debug_OnFlyHmcOps",         "Vault debugging for hmc queue"},
   {"vault.debug_OnFlyHmcOpsThresh",   "Vault debugging for hmc queue threshhold value"},
   {"vault.statistics_format",         "Optional, Stats format. Options: 0[default], 1[MacSim]", "0"},
+  {"vault.bank_MappingScheme",        "Mapping Scheme for banks (not accurate now)"},
   {"vault.HMCCost_LogicalOps",        "Compute Cost of Logical Ops in Vault's cycles", "0"},
   {"vault.HMCCost_CASOps",            "Compute Cost of CAS Ops in Vault's cycles", "0"},
   {"vault.HMCCost_CompOps",           "Compute Cost of Compare Ops in Vault's cycles", "0"},
@@ -129,7 +134,7 @@ static const ElementInfoParam Vault_params[] = {
     {"pwd",                       "Path of DRAMSim input files (ignored if file name is an absoluth path)", NULL},
     {"logfile",                   "DRAMSim output path", NULL},
     {"mem_size",                  "Size of physical memory in MB", "0"},
-    {"statistics_format",         "Optional, Stats format. Options: 0[default], 1[MacSim]", "0"},
+    {"bank_MappingScheme",        "Mapping Scheme for banks (not accurate now)"},
     {"HMCCost_LogicalOps",        "Compute Cost of Logical Ops in Vault's cycles", "0"},
     {"HMCCost_CASOps",            "Compute Cost of CAS Ops in Vault's cycles", "0"},
     {"HMCCost_CompOps",           "Compute Cost of Compare Ops in Vault's cycles", "0"},
@@ -143,15 +148,17 @@ static const ElementInfoParam Vault_params[] = {
 };
 
 static const ElementInfoStatistic Vault_statistics[] = {
-  { "TOTAL_TRANSACTIONS",      "", "reqs", 1},
-  { "TOTAL_HMC_OPS",           "", "reqs", 1},
-  { "TOTAL_NON_HMC_OPS",       "", "reqs", 1},
-  { "TOTAL_NON_HMC_READ",      "", "reqs", 1},
-  { "TOTAL_NON_HMC_WRITE",     "", "reqs", 1},
-  { "HMC_OPS_TOTAL_LATENCY",   "", "cycles", 1},
-  { "HMC_OPS_ISSUE_LATENCY",   "", "cycles", 1},
-  { "HMC_OPS_READ_LATENCY",    "", "cycles", 1},
-  { "HMC_OPS_WRITE_LATENCY",   "", "cycles", 1},
+  { "Total_transactions",           "Total transactions", "reqs", 1},
+  { "Total_hmc_ops",                "Total hmc ops", "reqs", 1},
+  { "Total_non_hmc_ops",            "Total non hmc ops", "reqs", 1},
+  { "Total_candidate_hmc_ops",      "Total candidate hmc ops", "reqs", 1},
+  { "Total_hmc_confilict_happened", "Total hmc confilict happened", "reqs", 1},
+  { "Total_non_hmc_read",           "Total non hmc read", "reqs", 1},
+  { "Total_non_hmc_write",          "Total non hmc write", "reqs", 1},
+  { "Hmc_ops_total_latency",        "Hmc ops total latency", "cycles", 1},
+  { "Hmc_ops_issue_latency",        "Hmc ops issue latency", "cycles", 1},
+  { "Hmc_ops_read_latency",         "Hmc ops read latency", "cycles", 1},
+  { "Hmc_ops_write_latency",        "Hmc ops write latency", "cycles", 1},
   { NULL, NULL, NULL, 0 }
 };
 

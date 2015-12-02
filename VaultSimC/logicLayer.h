@@ -18,10 +18,19 @@
 #include <sst/core/output.h>
 #include <sst/core/statapi/stataccumulator.h>
 #include <sst/core/statapi/stathistogram.h>
+#include <sst/elements/memHierarchy/memEvent.h>
 
+#include <set>
+#include <queue>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
 #include <sstream>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
+
+#include <DRAMSim.h>
+#include <AddressMapping.h>
 
 #include "globals.h"
 #include "transaction.h"
@@ -33,6 +42,10 @@ class logicLayer : public IntrospectedComponent {
 private:
     typedef SST::Link memChan_t;
     typedef vector<memChan_t*> memChans_t;
+
+    #ifdef USE_VAULTSIM_HMC
+    typedef unordered_map<uint64_t, vector<MemHierarchy::MemEvent*> > tIdQueue_t;
+    #endif
 
 public:
     /** 
@@ -58,27 +71,44 @@ private:
     bool clock(Cycle_t);
 
     // Determine if we 'own' a given address
-    bool isOurs(unsigned int addr);
-
-    /**
-     *  Stats
-     */
-    // Helper function for printing statistics in MacSim format
-    template<typename T>
-    void writeTo(ofstream &ofs, string prefix, string name, T count);
-    void printStatsForMacSim();
+    inline bool isOurs(unsigned int addr);
 
 private:
+    unsigned int llID;
+
+    // Links to Vaults
     memChans_t memChans;        // SST links to each Vault
     SST::Link *toMem;
     SST::Link *toCPU;
     int reqLimit;
+    int numVaults;
 
+    int bankMappingScheme;
+
+    // for VaultId process
+    uint64_t CacheLineSize;             // it is used to determine VaultIDs
+    unsigned CacheLineSizeLog2;         // bits of CacheLineSize
+
+    // Multi logicLayer support (FIXME)
     unsigned int LL_MASK;
-    unsigned int llID;
+
+    // Transaction Support
+    #ifdef USE_VAULTSIM_HMC
+    tIdQueue_t tIdQueue;
+    unordered_map<uint64_t, uint64_t> transSize;
+    queue<uint64_t> transReadyQueue;
+    queue<uint64_t> transRetireQueue;
+    set<uint64_t> transConflictQueue;
+    unsigned activeTransactionsLimit;       //FIXME: Not used now
+    tIdQueue_t tIdReadyForRetire;
+    unordered_set<uint64_t> activeTransactions;
+    #endif
 
     // Statistics
     Statistic<uint64_t>* memOpsProcessed;
+    Statistic<uint64_t>* HMCCandidateProcessed;
+    Statistic<uint64_t>* HMCOpsProcessed;
+    Statistic<uint64_t>* HMCTransOpsProcessed;
     
     Statistic<uint64_t>* reqUsedToCpu[2];
     Statistic<uint64_t>* reqUsedToMem[2];
@@ -86,7 +116,6 @@ private:
     // Output
     Output dbg;                 // Output, for printing debuging commands
     Output out;                 // Output, for printing always printed info and stats
-    int statsFormat;            // Type of Stat output 0:Defualt 1:Macsim (Default Value is set to 0)
 };
 
 #endif
