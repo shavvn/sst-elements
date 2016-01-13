@@ -42,6 +42,9 @@ DragonflyMachine::DragonflyMachine(int routersPerGroup, int portsPerRouter,
     //sanity check
     if (portsPerRouter < nodesPerRouter + opticalsPerRouter)
         schedout.fatal(CALL_INFO, 1, "DragonflyMachine: Too few ports!\n");
+    if (opticalsPerRouter % 2 != 0)
+        schedout.fatal(CALL_INFO, 1, "DragonflyMachine: opticalsPerRouter must be an even number!\n");
+    
     int total;
     int dist_it;
     int linkCount = 0;
@@ -82,11 +85,14 @@ DragonflyMachine::DragonflyMachine(int routersPerGroup, int portsPerRouter,
     case CIRCULANT:
         for (int gID = 0; gID < numGroups; gID++) {
             for (int lID = 0; lID < routersPerGroup; lID++) {
-                int rID = gID * routersPerGroup + lID;
-                int otherID = (rID + (lID + 1) * routersPerGroup) % numRouters;
-                routers[rID][otherID] = linkCount;
-                routers[otherID][rID] = linkCount;
-                linkCount++;
+                for(int opt = 1; opt <= opticalsPerRouter / 2; opt++) {
+                    int rID = gID * routersPerGroup + lID;
+                    int otherID = (rID + (lID * opticalsPerRouter / 2 + opt) * routersPerGroup)
+                      % numRouters;
+                    routers[rID][otherID] = linkCount;
+                    routers[otherID][rID] = linkCount;
+                    linkCount++;
+                }
             }
         }
         break;        
@@ -96,8 +102,13 @@ DragonflyMachine::DragonflyMachine(int routersPerGroup, int portsPerRouter,
     
     //node-to-router link indices are in-order starting from (numLinks - nodesPerRouter * numRouters)
     //sanity check
-    if (linkCount != numLinks - nodesPerRouter * numRouters)
-        schedout.fatal(CALL_INFO, 1, "DragonflyMachine: Network setup failed!\n");
+    if (linkCount != numLinks - nodesPerRouter * numRouters) {
+        stringstream msg;
+        msg << "DragonflyMachine: Network setup failed!\n";
+        msg << "Expected link count:" << (numLinks - nodesPerRouter * numRouters) << ". ";
+        msg << "Calculated link count:" << linkCount << ".\n";
+        schedout.fatal(CALL_INFO, 1, msg.str().c_str());
+    }
     
     //Fill nodes at distances for fast access
     //Calculate with breadth-first from node 0. Assume symmetrical network
@@ -248,9 +259,8 @@ vector<int>* DragonflyMachine::getRoute(int node0, int node1, double commWeight)
         if (gdist != 0) {
             if (ltopo == ALLTOALL) {
                 //the local router id's with required global connections
-                int rmid0 = gID0 * routersPerGroup + gdist - 1;
-                int rmid1 = gID1 * routersPerGroup + gdist - 1;
-			 
+                int rmid0 = gID0 * routersPerGroup + (gdist - 1) * 2 / opticalsPerRouter;
+                int rmid1 = gID1 * routersPerGroup + (gdist - 1) * 2 / opticalsPerRouter;
                 //add local hop 1
                 if (rID0 != rmid0)
                     links->push_back(routers[rID0].find(rmid0)->second);

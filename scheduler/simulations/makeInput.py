@@ -13,11 +13,14 @@ traceName = 'test_scheduler_Atlas.sim'
 outFile = 'sstInput.py'
 
 # Machine (cluster) configuration:
-# mesh[xdim, ydim, zdim], simple. (default: simple)
+# mesh[xdim, ydim, zdim], torus[xdim, ydim, zdim], simple,
+# dragonfly[routersPerGroup, portsPerRouter, opticalsPerRouter,
+#           nodesPerRouter, localTopology, globalTopology]
+# (default: simple)
 machine = 'mesh[5,4,4]'
 
 # Number of machine nodes
-# The script calculates the number of nodes if mesh machine is provided.
+# The script calculates the number of nodes if mesh or torus machine is provided.
 # any integer. (default: 1)
 numberNodes = ''
 
@@ -113,6 +116,7 @@ if __name__ == '__main__':
     	nums = nums.split(']')[0]
     	nums = nums.split(',')
     	numberNodes = int(nums[0])*int(nums[1])*int(nums[2])
+    numberNodes = int(numberNodes)
     for i in range(0, numberNodes):
     	f.write('n' + str(i) + ' = sst.Component("n' + str(i) + \
             '", "scheduler.nodeComponent")\n')
