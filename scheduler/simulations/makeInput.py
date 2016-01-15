@@ -16,6 +16,8 @@ outFile = 'sstInput.py'
 # mesh[xdim, ydim, zdim], torus[xdim, ydim, zdim], simple,
 # dragonfly[routersPerGroup, portsPerRouter, opticalsPerRouter,
 #           nodesPerRouter, localTopology, globalTopology]
+#           localTopology:[all_to_all]
+#           globalTopology:[absolute,circulant]
 # (default: simple)
 machine = 'mesh[5,4,4]'
 

@@ -304,21 +304,29 @@ Machine* Factory::getMachine(SST::Params& params, int numNodes)
         case DRAGONFLY:
         {
             if (schedparams -> size() < 7) {
-                schedout.fatal(CALL_INFO, 1, "Wrong number of arguments for Dragonfly Machine: routersPerGroup, portsPerRouter, opticalsPerRouter, nodesPerRouter, localTopology (opt), globalTopology (opt)");
+                schedout.fatal(CALL_INFO, 1, "Wrong number of arguments for Dragonfly Machine: Usage:"
+                "dragonfly[routersPerGroup, portsPerRouter, opticalsPerRouter, nodesPerRouter, localTopology, globalTopology]");
             }
-            int routersPerGroup     = strtol(schedparams -> at(1).c_str(), NULL, 0);
-            int portsPerRouter      = strtol(schedparams -> at(2).c_str(), NULL, 0);
-            int opticalsPerRouter   = strtol(schedparams -> at(3).c_str(), NULL, 0);
-            int nodesPerRouter      = strtol(schedparams -> at(4).c_str(), NULL, 0);
-            int lt = 0;
-            if (schedparams -> size() == 6)
-                lt = strtol(schedparams -> at(5).c_str(), NULL, 0);
-            int gt = 0;
-            if (schedparams -> size() == 7)
-                gt = strtol(schedparams -> at(6).c_str(), NULL, 0);
+            int routersPerGroup     = strtol(schedparams->at(1).c_str(), NULL, 0);
+            int portsPerRouter      = strtol(schedparams->at(2).c_str(), NULL, 0);
+            int opticalsPerRouter   = strtol(schedparams->at(3).c_str(), NULL, 0);
+            int nodesPerRouter      = strtol(schedparams->at(4).c_str(), NULL, 0);
+            DragonflyMachine::localTopo lt;
+            if (schedparams->at(5).compare("all_to_all") == 0) {
+                lt = DragonflyMachine::ALLTOALL;
+            } else {
+                schedout.fatal(CALL_INFO, 1, "Unknown local topology for dragonfly machine.");
+            }
+            DragonflyMachine::globalTopo gt;
+            if (schedparams->at(6).compare("absolute") == 0) {
+                gt = DragonflyMachine::ABSOLUTE;
+            } else if (schedparams->at(6).compare("circulant") == 0) {
+                gt = DragonflyMachine::CIRCULANT;
+            } else {
+                schedout.fatal(CALL_INFO, 1, "Unknown global topology for dragonfly machine.");
+            }
             retMachine = new DragonflyMachine(routersPerGroup, portsPerRouter, opticalsPerRouter,
-                nodesPerRouter, coresPerNode, (DragonflyMachine::localTopo) lt,
-                (DragonflyMachine::globalTopo) gt, D_matrix);
+                nodesPerRouter, coresPerNode, lt, gt, D_matrix);
             break;
         }
         default:
