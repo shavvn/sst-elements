@@ -27,11 +27,12 @@ namespace SST {
                 
             public:
                 enum localTopo{
-                    ALLTOALL = 0,
+                    ALLTOALL,
                 };
                 
                 enum globalTopo{
-                    CIRCULANT = 0,
+                    CIRCULANT,
+                    ABSOLUTE,
                 };
                 
                 DragonflyMachine(int routersPerGroup, int portsPerRouter, int opticalsPerRouter,
@@ -80,7 +81,8 @@ namespace SST {
 
                 //router graph: routers[routerID] = map<targetRouterID, linkInd>
                 std::vector<std::map<int,int> > routers;
-                int routerOf(int node) const;
+                int routerOf(int nodeID) const { return nodeID / nodesPerRouter; }
+                int groupOf(int routerID) const { return routerID / routersPerGroup; }
                 std::vector<int> nodesAtDistances;
                 
                 const localTopo ltopo;
