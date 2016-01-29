@@ -540,6 +540,12 @@ VOID InstrumentRoutine(RTN rtn, VOID* args) {
         return;
     } else if (RTN_Name(rtn) == "gettimeofday" || RTN_Name(rtn) == "_gettimeofday" ||
             RTN_Name(rtn) == "__gettimeofday") {
+        if (SYM_IFuncResolver(RTN_Sym(rtn))) {
+            fprintf(stderr,"Identified routine: gettimeofday, replacing with Ariel equivalent...\n");
+            RTN_Replace(RTN_IFuncImplementation(rtn), (AFUNPTR) mapped_gettimeofday);
+            fprintf(stderr,"Replacement complete.\n");
+            return;
+        }
         fprintf(stderr,"Identified routine: gettimeofday, replacing with Ariel equivalent...\n");
         RTN_Replace(rtn, (AFUNPTR) mapped_gettimeofday);
         fprintf(stderr,"Replacement complete.\n");
