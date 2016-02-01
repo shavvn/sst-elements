@@ -96,7 +96,7 @@ void NearestAllocMapper::allocMap(const AllocInfo & ai,
 
     //create breadth-first tree around a center task
     createCommGraph(*job);
-
+            
     FibonacciHeap tasks(nodesNeeded); //task frame
     tasks.insert(centerTask,0);
     list<int> frameNodes; //nodes that "frame" the current allocation
@@ -198,7 +198,7 @@ void NearestAllocMapper::createCommGraph(const Job & job)
             }
         }
         xadj[jobSize] = adjncy.size();
-
+        
         std::vector<idx_t> METIS_taskToVertex(taskToVertex.size()); //to avoid build error
 
         //partition
@@ -247,7 +247,7 @@ void NearestAllocMapper::createCommGraph(const Job & job)
             }
         }
         delete rawCommGraph;
-
+        
         //assign center task
         if(centerTask == -1){
             centerTask = getCenterTask(*commGraph);
@@ -271,8 +271,7 @@ int NearestAllocMapper::getCenterTask(const std::vector<std::map<int,int> > & in
     double newDist;
     int minTask = max((long int) 0, jobSize / 2  - upperLimit / 2);
     int maxTask = min((long int) jobSize, jobSize / 2 + upperLimit / 2);
-    for(int task = minTask; task < maxTask; task++){
-        //start from the middle task - higher probability of smallest distance
+    for(int task = minTask; task < maxTask; task++){        
         newDist = dijkstraWithLimit(inCommGraph, task, minDist);
         if(newDist < minDist){
             minDist = newDist;
