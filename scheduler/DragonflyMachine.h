@@ -53,9 +53,9 @@ namespace SST {
                 //max number of nodes at the given distance - NearestAllocMapper uses this
                 int nodesAtDistance(int dist) const;
                 
-                //DragonflyMachine default routing is local->(global->global->...)->local
-                //@return vector of link indices
-                std::vector<int>* getRoute(int node0, int node1, double commWeight) const;
+                //DragonflyMachine default routing is shortest path
+                //@return list of link indices
+                std::list<int>* getRoute(int node0, int node1, double commWeight) const;
                 
             private:                
                 //constructor helpers

@@ -58,7 +58,7 @@ namespace SST {
 
                 //finds the communication route between node0 and node1 for the given weight of commWeight
                 //@return The link indices used in the route
-                virtual std::vector<int>* getRoute(int node0, int node1, double commWeight) const = 0;
+                virtual std::list<int>* getRoute(int node0, int node1, double commWeight) const = 0;
                 
                 double** D_matrix;
                 
