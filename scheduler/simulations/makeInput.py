@@ -17,7 +17,7 @@ outFile = 'sstInput.py'
 # dragonfly[routersPerGroup, portsPerRouter, opticalsPerRouter,
 #           nodesPerRouter, localTopology, globalTopology]
 #           localTopology:[all_to_all]
-#           globalTopology:[absolute,circulant]
+#           globalTopology:[absolute,circulant,relative]
 # (default: simple)
 machine = 'mesh[5,4,4]'
 
