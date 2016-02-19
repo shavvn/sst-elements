@@ -65,11 +65,11 @@ Sieve::Sieve(ComponentId_t id, Params &params, CacheArray * cacheArray, Output *
     output_->debug(_INFO_,"--------------------------- Initializing [Sieve]: %s... \n", this->Component::getName().c_str());
 
     /* file output */ 
-    string outFileName  = params.find_string("output_file");
+    outFileName  = params.find_string("output_file");
     if (outFileName.empty()) {
-      outFileName = "sieveMallocRank.txt";
+      outFileName = "sieveMallocRank";
     }
-    output_file = new Output("",0,0,SST::Output::FILE,outFileName);
+    outCount = 0;
     
     /* --------------- Sieve profiler - implemented as a cassini prefetcher subcomponent ---------------*/
     string listener   = params.find_string("profiler");
@@ -112,7 +112,7 @@ void Sieve::configureLinks() {
             output_->output(CALL_INFO, "Port %lu = Link %d\n", cpuLinks_[i]->getId(), i);
         }
     }
-    if (cpuLinkCount_ < 1) output_->fatal(CALL_INFO, -1,"Did not find any connected links on ports cpu_link_\%d\n");
+    if (cpuLinkCount_ < 1) output_->fatal(CALL_INFO, -1,"Did not find any connected links on ports cpu_link_X\n");
 }
 
     }}
