@@ -22,10 +22,10 @@ namespace SST { namespace MemHierarchy {
 class MESIInternalDirectory : public CoherencyController {
 public:
     /** Constructor for MESIInternalDirectory. */
-    MESIInternalDirectory(const Cache* directory, string ownerName, Output* dbg, vector<Link*>* parentLinks, vector<Link*>* childLinks, CacheListener* listener, 
+    MESIInternalDirectory(const Cache* directory, string ownerName, Output* dbg, vector<Link*>* parentLinks, Link* childLink, CacheListener* listener, 
             unsigned int lineSize, uint64 accessLatency, uint64 tagLatency, uint64 mshrLatency, bool LLC, bool LL, MSHR * mshr, bool protocol,
             bool wbClean, MemNIC* bottomNetworkLink, MemNIC* topNetworkLink, bool debugAll, Addr debugAddr) :
-                 CoherencyController(directory, dbg, ownerName, lineSize, accessLatency, tagLatency, mshrLatency, LLC, LL, parentLinks, childLinks, 
+                 CoherencyController(directory, dbg, ownerName, lineSize, accessLatency, tagLatency, mshrLatency, LLC, LL, parentLinks, childLink, 
                          bottomNetworkLink, topNetworkLink, listener, mshr, wbClean, debugAll, debugAddr) {
         d_->debug(_INFO_,"--------------------------- Initializing [MESI + Directory Controller] ... \n\n");
         protocol_           = protocol;
@@ -57,11 +57,15 @@ public:
 
     /** Process responses - GetSResp, GetXResp, FetchResp */
     CacheAction handleResponse(MemEvent* responseEvent, CacheLine* dirLine, MemEvent* origRequest);
+    
 
 /* Miscellaneous */
     
     /** Determine in advance if a request will miss (and what kind of miss). Used for stats */
     int isCoherenceMiss(MemEvent* event, CacheLine* dirLine);
+
+    /** Determine whether a NACKed event should be retried */
+    bool isRetryNeeded(MemEvent * event, CacheLine * cacheLine);
 
 private:
 /* Private data members */

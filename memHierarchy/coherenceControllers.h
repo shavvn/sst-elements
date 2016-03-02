@@ -89,6 +89,8 @@ public:
     virtual CacheAction handleEviction(CacheLine * line, string rqstr, bool fromDataCache=false) =0;
     virtual CacheAction handleResponse(MemEvent * event, CacheLine * line, MemEvent * request) =0;
     
+    virtual bool isRetryNeeded(MemEvent * event, CacheLine * line) =0;
+
     // Let cache update timestamp
     void updateTimestamp(uint64_t newTS) { timestamp_ = newTS; }
 
@@ -171,6 +173,7 @@ public:
 #ifdef __SST_DEBUG_OUTPUT__
         if (DEBUG_ALL || DEBUG_ADDR == event->getBaseAddr()) d_->debug(_L3_,"Forwarding request at cycle = %" PRIu64 "\n", deliveryTime);        
 #endif
+        return deliveryTime;
     }
     
 
@@ -229,7 +232,7 @@ public:
             if (topNetworkLink_) {
                 topNetworkLink_->send(outgoingEvent);
             } else {
-                highNetPorts_->at(0)->send(outgoingEvent);
+                highNetPort_->send(outgoingEvent);
             }
             outgoingEventQueueUp_.pop_front();
         }
@@ -286,7 +289,7 @@ public:
 
 protected:
     CoherencyController(const Cache* cache, Output* dbg, string name, uint lineSize, uint64_t accessLatency, uint64_t tagLatency, uint64_t mshrLatency, bool LLC, bool LL, 
-            vector<Link*>* parentLinks, vector<Link*>* childLinks, MemNIC* bottomNetworkLink, MemNIC* topNetworkLink, CacheListener* listener, MSHR * mshr, bool wbClean, 
+            vector<Link*>* parentLinks, Link* childLink, MemNIC* bottomNetworkLink, MemNIC* topNetworkLink, CacheListener* listener, MSHR * mshr, bool wbClean, 
             bool debugAll, Addr debugAddr):
                         timestamp_(0), accessLatency_(1), tagLatency_(1), owner_(cache), d_(dbg), lineSize_(lineSize), sentEvents_(0) {
         name_                   = name;
@@ -301,7 +304,7 @@ protected:
         bottomNetworkLink_      = bottomNetworkLink;
         topNetworkLink_         = topNetworkLink;
         lowNetPorts_            = parentLinks;
-        highNetPorts_           = childLinks;
+        highNetPort_            = childLink;
         listener_               = listener;
         writebackCleanBlocks_   = wbClean;
 
@@ -488,7 +491,7 @@ protected:
     bool            writebackCleanBlocks_;
     
     vector<Link*>*  lowNetPorts_;
-    vector<Link*>*  highNetPorts_;
+    Link*           highNetPort_;
     vector<string>  lowerLevelCacheNames_;
     vector<string>  upperLevelCacheNames_;
 
@@ -910,22 +913,22 @@ protected:
                 stat_eventSent_GetXResp->addData(1);
                 break;
             case Inv:
-                stat_eventSent_Inv;
+                stat_eventSent_Inv->addData(1);
                 break;
             case Fetch:
-                stat_eventSent_Fetch;
+                stat_eventSent_Fetch->addData(1);
                 break;
             case FetchInv:
-                stat_eventSent_FetchInv;
+                stat_eventSent_FetchInv->addData(1);
                 break;
             case FetchInvX:
-                stat_eventSent_FetchInvX;
+                stat_eventSent_FetchInvX->addData(1);
                 break;
             case AckPut:
-                stat_eventSent_AckPut;
+                stat_eventSent_AckPut->addData(1);
                 break;
             case NACK:
-                stat_eventSent_NACK_up;
+                stat_eventSent_NACK_up->addData(1);
                 break;
             default: 
                 break;
