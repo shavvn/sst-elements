@@ -1,27 +1,8 @@
-[JOB_ID] 8
+[JOB_ID] 0
 
-[NID_LIST] 0,1,2,3,4,5,11,10,9,8,7,6,12,13,14,15,16,17,23,22,21,20,19,18,42,43,44,45,46,47,41,40
+[NID_LIST] 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,19,20,22,40,41,48,49,72,73,80,81,88,104,105
 [MOTIF] Init
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
-[MOTIF] Halo3D iterations=19 computetime=167140 doreduce=0 nx=8 ny=4 nz=4
-[MOTIF] Allreduce iterations=78 compute=0
+[MOTIF] Unstructured iterations=100	graphfile=graph_files/GD99_b.mtx
 [MOTIF] Stop
 [MOTIF] Fini
 

@@ -56,6 +56,7 @@
 #include "mpi/motifs/embercmt3d.h"
 #include "mpi/motifs/embercmtcr.h"
 #include "mpi/motifs/emberstop.h"
+#include "mpi/motifs/emberunstructured.h" //NetworkSim: added unstructured communication motif
 #include "mpi/motifs/embersiriustrace.h"
 #include "mpi/motifs/emberrandomgen.h"
 #include "emberconstdistrib.h"
@@ -265,6 +266,13 @@ load_Stop( Component* comp, Params& params ) {
 }
 //end->NetworkSim
 
+//NetworkSim: loader for the unstructured communication motif
+static SubComponent*
+load_Unstructured( Component* comp, Params& params ) {
+	return new EmberUnstructuredGenerator(comp, params);
+}
+//end->NetworkSim
+
 static const ElementInfoParam component_params[] = {
     { "module", "Sets the OS module", ""},
     { "verbose", "Sets the output verbosity of the component", "0" },
@@ -409,6 +417,20 @@ static const ElementInfoParam barrier_params[] = {
 static const ElementInfoParam stop_params[] = {
 	{	"arg.iterations",		"Sets the number of barrier operations to perform", 	"1024"},
 	{	"arg.compute",		"Sets the time spent computing",	 	"1"},
+	{	NULL,	NULL,	NULL	}
+};
+//end->NetworkSim
+
+//NetworkSim: unstructured motif params
+static const ElementInfoParam unstructured_params[] = {
+	{	"arg.iterations",		"Sets the number of unstructured motif operations to perform", 	"1"},
+	{	"arg.compute",		"Sets the time spent computing",	 	"1"},
+	{	"arg.graphfile",		"Name of the file the includes the communication graph",	 	"Null"},
+	{	"arg.nx",			"Sets the problem size in X-dimension",			"100"},
+	{	"arg.ny",			"Sets the problem size in Y-dimension",			"100"},
+	{	"arg.nz",			"Sets the problem size in Z-dimension",			"100"},
+	{	"arg.fields_per_cell",	"Specify how many variables are being computed per cell (this is one of the dimensions in message size. Default is 1", "1"},
+	{	"arg.datatype_width",	"Specify the size of a single variable, single grid point, typically 8 for double, 4 for float, default is 8 (double). This scales message size to ensure byte count is correct.", "8"},
 	{	NULL,	NULL,	NULL	}
 };
 //end->NetworkSim
@@ -810,6 +832,14 @@ static const ElementInfoSubComponent subcomponents[] = {
 	NULL,
 	load_Stop,
 	stop_params,
+	emberMotifTime_statistics,
+    "SST::Ember::EmberGenerator"
+    },
+    { 	"UnstructuredMotif",
+	"NetworkSim: Performs an Unstructured Communication Motif based on an input graph",
+	NULL,
+	load_Unstructured,
+	unstructured_params,
 	emberMotifTime_statistics,
     "SST::Ember::EmberGenerator"
     },

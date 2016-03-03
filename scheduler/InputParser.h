@@ -78,10 +78,11 @@ namespace SST {
                 CommParser() { }
                 ~CommParser() { }
                 void parseComm(Job *job);
+                std::vector<std::map<int,int> >* readCommFile(std::string fileName, int procsNeeded);
             private:
                 //vector: task #s
                 //map<key,value> = map<communicatingTask, weight>
-                std::vector<std::map<int,int> >* readCommFile(std::string fileName, int procsNeeded);
+                //std::vector<std::map<int,int> >* readCommFile(std::string fileName, int procsNeeded); //NetworkSim: moved this to public ot access from ember motifs
                 double** readCoordFile(std::string fileName, int procsNeeded);
         };
         

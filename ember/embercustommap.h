@@ -42,8 +42,8 @@ public:
         // NetworkSim: added variables to construct the custom map
         std::string jobId;
         std::string mapFile;
-        std::map<int, int> CustomMap;
-        std::map<int, int> InvCustomMap;
+        std::map<int, int> CustomMap; //custom task mapping
+        std::map<int, int> InvCustomMap; //inverse of the custom task mapping
         // end->NetworkSim
 
         //NetworkSim: function that reads the custom mapping of the job with _mapjobId
@@ -96,7 +96,7 @@ public:
                 for(std::map<int, int>::iterator it = CustomMap.begin(); it != CustomMap.end(); it++){
                         std::cout << "linearMapRankNum: " << it->first << " customMapRankNum: " << it->second << std::endl;
                 }
-                */
+                */                
         }
 
 	void setEnvironment(const uint32_t rank, const uint32_t worldSize) {};

@@ -1,6 +1,6 @@
 
 import sys,getopt
-sys.path.insert(0, 'PATH')
+sys.path.insert(0, '/mnt/nokrb/fkaplan3/SST/git/sst/sst/elements/ember/test')
 import defaultParams
 import defaultSim
 import chamaOpenIBParams

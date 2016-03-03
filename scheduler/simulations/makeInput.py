@@ -7,10 +7,10 @@ Setting a parameter to "default" or "" will select the default option
 import os
 
 # Input workload trace path:
-traceName = 'test_scheduler_Atlas.sim'
+traceName = 'test_MappingImpact.sim'
 
 # Output file name:
-outFile = 'sstInput.py'
+outFile = 'test_MappingImpact_libtopomap.py'
 
 # Machine (cluster) configuration:
 # mesh[xdim, ydim, zdim], torus[xdim, ydim, zdim], simple,
@@ -19,7 +19,7 @@ outFile = 'sstInput.py'
 #           localTopology:[all_to_all]
 #           globalTopology:[absolute,circulant]
 # (default: simple)
-machine = 'mesh[5,4,4]'
+machine = 'dragonfly[4,9,4,2,all_to_all,absolute]'
 
 # Number of machine nodes
 # The script calculates the number of nodes if mesh or torus machine is provided.
@@ -28,7 +28,7 @@ numberNodes = ''
 
 # Number of cores in each machine node
 # any integer. (default: 1)
-coresPerNode = '4'
+coresPerNode = '2'
 
 # Scheduler algorithm:
 # cons, delayed, easy, elc, pqueue, prioritize. (default: pqueue)
@@ -42,11 +42,11 @@ FST = ''
 # bestfit, constraint, energy, firstfit, genalg, granularmbs, hybrid, mbs,
 # mc1x1, mm, nearest, octetmbs, oldmc1x1,random, simple, sortedfreelist, 
 # nearestamap, spectralamap. (default: simple)
-allocator = 'bestfit'
+allocator = 'simple'
 
 # Task mapping algorithm:
 # simple, rcb, random, topo, rcm, nearestamap, spectralamap. (default: simple)
-taskMapper = 'default'
+taskMapper = 'topo'
 
 # Communication overhead parameters
 # a[b,c] (default: none)
@@ -59,6 +59,18 @@ dMatrixFile = 'none'
 # Randomization seed for communication time overhead
 # none, any integer. (default: none)
 randomSeed = ''
+
+# Detailed network simulation mode
+# ON, OFF (default: OFF)
+detailedNetworkSim = 'ON'
+
+# Completed jobs trace (in ember) for detailed network sim mode
+# file path, none (default: none)
+completedJobsTrace = 'emberCompleted.txt'
+
+# Running jobs (in ember) for detailed network sim mode
+# file path, none (default: none)
+runningJobsTrace = 'emberRunning.txt'
 
 
 '''
@@ -107,6 +119,13 @@ if __name__ == '__main__':
     	f.write('      "dMatrixFile" : "' + dMatrixFile + '",\n')
     if randomSeed != "" and randomSeed != "default":
     	f.write('      "runningTimeSeed" : "' + randomSeed + '",\n')
+    if detailedNetworkSim != "" and detailedNetworkSim != "default":
+        f.write('      "detailedNetworkSim" : "' + detailedNetworkSim + '",\n')
+    if completedJobsTrace != "" and completedJobsTrace != "default":
+        f.write('      "completedJobsTrace" : "' + completedJobsTrace + '",\n')
+    if runningJobsTrace != "" and runningJobsTrace != "default":
+        f.write('      "runningJobsTrace" : "' + runningJobsTrace + '",\n')
+
     f.seek(-2, os.SEEK_END)
     f.truncate()
     f.write('\n})\n')
@@ -118,6 +137,12 @@ if __name__ == '__main__':
     	nums = nums.split(']')[0]
     	nums = nums.split(',')
     	numberNodes = int(nums[0])*int(nums[1])*int(nums[2])
+    elif machine.split('[')[0] == 'dragonfly':
+        nums = machine.split('[')[1]
+        nums = nums.split(']')[0]
+        nums = nums.split(',')
+        numberNodes = (int(nums[0])*int(nums[0])+1) *int(nums[0])*int(nums[3])
+
     numberNodes = int(numberNodes)
     for i in range(0, numberNodes):
     	f.write('n' + str(i) + ' = sst.Component("n' + str(i) + \

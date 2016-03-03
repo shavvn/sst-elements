@@ -113,7 +113,9 @@ def parse_xml (options):
         numCores = len(NodeList[0][1])
 
         # Sort NodeList to match the desired mapping in ember
-        sortedNodeList = sort_NID(NodeList, numCores)
+        #Fulya Jan 2016: Commented out sorting, fix later
+        #sortedNodeList = sort_NID(NodeList, numCores)
+        sortedNodeList = NodeList
 
         tempJobObject = Job()
         tempJobObject.set(jobNum, sortedNodeList, motifFile, startingMotif)
@@ -138,8 +140,8 @@ def sort_NID (nodeList, numCores):
 def generate_ember_files (TimeObject, JobObjects):
 
     loadfile    = generate_loadfile (TimeObject, JobObjects)
-    #mapfile     = generate_mapfile (JobObjects)
-    mapfile = "mapFile.txt"
+    mapfile     = generate_mapfile (JobObjects)
+    #mapfile = "mapFile.txt"
     execcommand = generate_ember_script (TimeObject, JobObjects, loadfile, mapfile)
 
     return (execcommand)
@@ -239,7 +241,7 @@ def generate_ember_script (TimeObject, JobObjects, loadfile, mapfile):
         execcommand = "sst --stop-at " + StopAtTime
     # Generate commandline string to execute
     #execcommand += " --model-options=\"--topo=torus --shape=5x4x4 --numCores=4 --netFlitSize=8B --netPktSize=1024B --netBW=4GB/s --emberVerbose=0 --printStats=1"
-    execcommand += " --model-options=\"--topo=dragonfly --shape=7:2:2:4 --numCores=4 --netFlitSize=8B --netPktSize=1024B --netBW=4GB/s --emberVerbose=0 --printStats=1"
+    execcommand += " --model-options=\"--topo=dragonfly --shape=9:2:4:4 --numCores=2 --netFlitSize=8B --netPktSize=1024B --netBW=1GB/s --emberVerbose=0 --printStats=1"
     execcommand += " --embermotifLog=" + currDir + "/motif"
     #execcommand += " --rankmapper=ember.CustomMap"
     execcommand += " --loadFile=" + loadfile + "\""
