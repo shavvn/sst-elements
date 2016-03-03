@@ -102,18 +102,36 @@ DragonflyMachine::DragonflyMachine(int routersPerGroup, int portsPerRouter,
     {
         int maxLinks = opticalsPerRouter + localLinksPerRouter;
         for (int gID = 0; gID < numGroups; gID++) {
-            int targetGroup = gID + 1;
+            int targetgID = gID + 1;
             for (int lID = 0; lID < routersPerGroup; lID++) {
                 int rID = gID * routersPerGroup + lID;
                 while(routers[rID].size() != maxLinks) {
-                    int otherID = targetGroup * routersPerGroup;
+                    int otherID = targetgID * routersPerGroup;
                     while (routers[otherID].size() == maxLinks) {
                         otherID = (otherID + 1) % numRouters;
                     }
                     routers[rID][otherID] = linkCount;
                     routers[otherID][rID] = linkCount;
                     linkCount++;
-                    targetGroup = (targetGroup + 1) % numGroups;
+                    targetgID = (targetgID + 1) % numGroups;
+                }
+            }
+        }
+        break;
+    }
+    case RELATIVE:
+    {
+        for (int gID = 0; gID < numGroups; gID++) {
+            int targetgID = gID + 1;
+            for (int lID = 0; lID < routersPerGroup / 2; lID++) {
+                int rID = gID * routersPerGroup + lID;
+                int targetlID = routersPerGroup - lID - 1;
+                for (int opt = 0; opt < opticalsPerRouter; opt++) {
+                    int targetID = (targetgID * routersPerGroup + targetlID) % numRouters;
+                    routers[rID][targetID] = linkCount;
+                    routers[targetID][rID] = linkCount;
+                    linkCount++;
+                    targetgID++;
                 }
             }
         }

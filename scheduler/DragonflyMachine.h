@@ -33,6 +33,7 @@ namespace SST {
                 enum globalTopo{
                     CIRCULANT,
                     ABSOLUTE,
+                    RELATIVE,
                 };
                 
                 DragonflyMachine(int routersPerGroup, int portsPerRouter, int opticalsPerRouter,

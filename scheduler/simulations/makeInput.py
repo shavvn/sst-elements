@@ -17,7 +17,7 @@ outFile = 'test_MappingImpact_libtopomap.py'
 # dragonfly[routersPerGroup, portsPerRouter, opticalsPerRouter,
 #           nodesPerRouter, localTopology, globalTopology]
 #           localTopology:[all_to_all]
-#           globalTopology:[absolute,circulant]
+#           globalTopology:[absolute,circulant,relative]
 # (default: simple)
 machine = 'dragonfly[4,9,4,2,all_to_all,absolute]'
 

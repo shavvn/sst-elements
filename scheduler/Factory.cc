@@ -322,6 +322,8 @@ Machine* Factory::getMachine(SST::Params& params, int numNodes)
                 gt = DragonflyMachine::ABSOLUTE;
             } else if (schedparams->at(6).compare("circulant") == 0) {
                 gt = DragonflyMachine::CIRCULANT;
+            } else if (schedparams->at(6).compare("relative") == 0) {
+                gt = DragonflyMachine::RELATIVE;
             } else {
                 schedout.fatal(CALL_INFO, 1, "Unknown global topology for dragonfly machine.");
             }
