@@ -29,10 +29,24 @@ for elem_dir in `ls ./`; do
 			echo " \\" >> Makefile.am
 			echo -n "     $elem_dir" >> Makefile.am
 		fi
+
+		sst_elements="$sst_elements $elem_dir"
 	fi
 done
 
 cd $BASE_DIR
+
+echo "dnl Automatically created by SST Autogen System" > config/sst_elements_include.m4
+
+for file in `ls $BASE_DIR/src/sst/elements/*`; do
+	if [ -d "$file" ]; then
+		if [ -r "$file/configure.m4" ]; then
+			echo "m4_include($file)" >> config/sst_elements_include.m4
+		fi
+	fi
+done
+
+echo "m4_define([sst_elements], [$sst_elements])" >> config/sst_elements_include.m4
 
 # Delete the old libtool output
 rm -rf libltdl src/libltdl

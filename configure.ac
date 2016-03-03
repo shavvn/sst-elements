@@ -7,6 +7,10 @@ AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([config])
 AM_INIT_AUTOMAKE([1.9.6 foreign dist-bzip2 subdir-objects no-define tar-ustar])
 
+AC_CONFIG_HEADER([src/sst_element_config.h])
+
+m4_include([config/sst_elements_include.m4])
+
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_CC_C99
@@ -30,6 +34,7 @@ AC_HEADER_TIME
 AC_CACHE_SAVE
 
 SST_CORE_CHECK_INSTALL()
+SST_CONFIG_ELEMENTS()
 
 AC_CONFIG_FILES([
   Makefile
