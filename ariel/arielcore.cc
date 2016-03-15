@@ -347,11 +347,6 @@ bool ArielCore::refillQueue() {
             createSwitchPoolEvent(ac.switchPool.pool);
             break;
 
-        case ARIEL_OUTPUT_STATS:
-            fprintf(stdout, "Performing statistics output at simulation time = %" PRIu64 "\n", owner->getCurrentSimTimeNano());
-            Simulation::getSimulation()->getStatisticsProcessingEngine()->performGlobalStatisticOutput();
-            break;
-
         case ARIEL_PERFORM_EXIT:
             createExitEvent();
             break;
