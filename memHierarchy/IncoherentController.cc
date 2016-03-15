@@ -144,6 +144,13 @@ CacheAction IncoherentController::handleResponse(MemEvent * respEvent, CacheLine
 }
 
 
+/* Incoherent caches always retry NACKs since there are not Inv/Fetch's to race
+ * with and resolve transactions early
+ */
+bool IncoherentController::isRetryNeeded(MemEvent * event, CacheLine * cacheLine) {
+    return true;
+}
+
 /*
  *  Return type of miss for profiling incoming events
  *  0:  Hit
@@ -270,7 +277,7 @@ CacheAction IncoherentController::handlePutMRequest(MemEvent* event, CacheLine* 
 CacheAction IncoherentController::handleDataResponse(MemEvent* responseEvent, CacheLine* cacheLine, MemEvent* origRequest){
     
     if (!inclusive_ && (cacheLine == NULL || cacheLine->getState() == I)) {
-        sendResponseUp(origRequest, responseEvent->getGrantedState(), &responseEvent->getPayload(), true, cacheLine->getTimestamp());
+        sendResponseUp(origRequest, responseEvent->getGrantedState(), &responseEvent->getPayload(), true, 0);
         return DONE;
     }
 
