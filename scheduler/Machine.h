@@ -35,8 +35,8 @@ namespace SST {
                 void allocate(TaskMapInfo* taskMapInfo);
                 void deallocate(TaskMapInfo* taskMapInfo);
 
-                int getNumFreeNodes() const { return numAvail; }
-                bool isFree(int nodeNum) const { return freeNodes[nodeNum]; }
+                inline int getNumFreeNodes() const { return numAvail; }
+                inline bool isFree(int nodeNum) const { return freeNodes[nodeNum]; }
                 std::vector<bool>* freeNodeList() const { return new std::vector<bool>(freeNodes); }
                 std::vector<int>* getFreeNodes() const;
                 std::vector<int>* getUsedNodes() const;

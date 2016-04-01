@@ -58,6 +58,21 @@ namespace SST {
                 //@return list of link indices
                 std::list<int>* getRoute(int node0, int node1, double commWeight) const;
                 
+                const localTopo ltopo;
+                const globalTopo gtopo;
+                const int routersPerGroup;
+                const int nodesPerRouter;
+                const int portsPerRouter;
+                const int opticalsPerRouter;
+                const int numGroups;
+                const int numNodes;
+                const int numRouters;
+                const int numLinks;
+
+                inline int routerOf(int nodeID) const { return nodeID / nodesPerRouter; }
+                inline int groupOf(int routerID) const { return routerID / routersPerGroup; }
+                inline int localIdOf(int routerID) const { return routerID % routersPerGroup; }
+
             private:                
                 //constructor helpers
                 int getNumNodes(int opticalsPerRouter, int routersPerGroup, int nodesPerRouter) const
@@ -82,20 +97,7 @@ namespace SST {
 
                 //router graph: routers[routerID] = map<targetRouterID, linkInd>
                 std::vector<std::map<int,int> > routers;
-                int routerOf(int nodeID) const { return nodeID / nodesPerRouter; }
-                int groupOf(int routerID) const { return routerID / routersPerGroup; }
                 std::vector<int> nodesAtDistances;
-                
-                const localTopo ltopo;
-                const globalTopo gtopo;
-                const int routersPerGroup;
-                const int nodesPerRouter;
-                const int portsPerRouter;
-                const int opticalsPerRouter;
-                const int numGroups;
-                const int numNodes;
-                const int numRouters;
-                const int numLinks;
         };
     }
 }

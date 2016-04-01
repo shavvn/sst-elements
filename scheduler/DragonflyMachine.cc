@@ -147,6 +147,7 @@ DragonflyMachine::DragonflyMachine(int routersPerGroup, int portsPerRouter,
         schedout.fatal(CALL_INFO, 1, "DragonflyMachine: Network setup failed!\n");
     }
     
+    //For nearestAllocMapper:
     //Fill nodes at distances for fast access
     //Calculate with breadth-first from node 0. Assume symmetrical network
     total = 1;

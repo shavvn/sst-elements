@@ -41,6 +41,7 @@
 #include "allocators/RandomAllocator.h"
 #include "allocators/RoundUpMBSAllocator.h"
 #include "allocators/SimpleAllocator.h"
+#include "allocators/SimpleSpreadAllocator.h"
 #include "allocators/SortedFreeListAllocator.h"
 
 #include "schedulers/EASYScheduler.h"
@@ -98,6 +99,7 @@ const Factory::allocTableEntry Factory::allocTable[] = {
     {HYBRID, "hybrid"},
     {NEARESTAMAP, "nearestamap"},
     {SPECTRALAMAP, "spectralamap"},
+    {SIMPLESPREAD, "simplespread"},
 };
 
 const Factory::taskMapTableEntry Factory::taskMapTable[] = {
@@ -475,6 +477,16 @@ Allocator* Factory::getAllocator(SST::Params& params, Machine* m, schedComponent
                 return new SpectralAllocMapper(*m, false);
             }
             break;
+        case SIMPLESPREAD:
+            {
+                DragonflyMachine *dMachine = dynamic_cast<DragonflyMachine*>(m);
+                if (dMachine == NULL) {
+                    schedout.fatal(CALL_INFO, 1, "Simple Spread allocator requires dragonfly machine\n");
+                } else {
+                    return new SimpleSpreadAllocator(*dMachine);
+                }
+                break;
+            }
         default:
             schedout.fatal(CALL_INFO, 1, "Could not parse name of allocator\n");
         }
