@@ -4,7 +4,7 @@
 // of Contract DE-AC04-94AL85000 with Sandia Corporation, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2015, Sandia Corporation
+// Copyright (c) 2009-2016, Sandia Corporation
 // All rights reserved.
 //
 // This file is part of the SST software package. For license
@@ -27,22 +27,22 @@ namespace Merlin {
     
 class topo_pentagon_event : public internal_router_event {
 public:
-    int dest_loc;
-    
+    uint32_t src_group;
+    topo_pentagon::fishnetAddr dest;
     topo_pentagon_event() {}
-    topo_pentagon_event(int dest) {dest_loc = dest;}
+    topo_pentagon_event(const topo_pentagon::fishnetAddr &dest) :dest(dest) {}
     ~topo_pentagon_event() {}
     virtual internal_router_event* clone(void)
     {
-        topo_pentagon_event* tpe = new topo_pentagon_event(*this); // what's THIS?
-        tte->dest_loc = dest_loc;
-        return tpe;
+        return new topo_pentagon_event(*this);
     }
     
     void serialize_order(SST::Core::Serialization::serializer &ser) 
     {
         internal_router_event::serialize_order(ser);
-        ser & dest_loc;
+        ser & src_group;
+        ser & dest.subnet;
+        ser & dest.local;
     }
     
 private:
@@ -52,14 +52,22 @@ private:
 
 class topo_pentagon: public Topology {
     
-    int router_id;
-    int* id_loc;
+    // global router id
+    uint32_t router_id;
+    // hosts per router, all routers should have the same value of this
+    uint32_t hosts_per_router;
+    // the start router id of this group
+    uint32_t start_router_id;
+    // the start host id under this router
+    // uint32_t start_host_id;
+    // the routing of fishnet is based on subnet and local router within subnet
+    struct fishnetAddr {
+        uint32_t subnet;
+        uint32_t router;
+        uint32_t host;
+    };
     
-    int port_start[5][2];
-    
-    int num_local_ports;
-    int local_port_start;
-    
+    // only implemented MINIMAL for now... 
     enum RouteAlgo {
         MINIMAL,
         VILIANT,
@@ -67,10 +75,7 @@ class topo_pentagon: public Topology {
     };
     
     RouteAlgo algorithm;
-    // local_id is the id within a pentagon
-    uint32_t local_id;
-    // group_id is the pentagon group id 
-    uint32_t group_id;
+    fishnetAddr addr;
     
 public:
     topo_pentagon(Component* comp, Params& params);
@@ -85,6 +90,7 @@ public:
     virtual PortState getPortState(int port) const;
     virtual int computeNumVCs(int vns);
     virtual int getEndpointID(int port);
+    uint32_t localToGlobalID(uint32_t local_num);
 
 protected:
     virtual int choose_multipath(int start_port, int num_ports, int dest_dist);
