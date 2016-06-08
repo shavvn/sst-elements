@@ -25,31 +25,6 @@
 namespace SST {
 namespace Merlin {
     
-class topo_pentagon_event : public internal_router_event {
-public:
-    uint32_t src_group;
-    topo_pentagon::fishnetAddr dest;
-    topo_pentagon_event() {}
-    topo_pentagon_event(const topo_pentagon::fishnetAddr &dest) :dest(dest) {}
-    ~topo_pentagon_event() {}
-    virtual internal_router_event* clone(void)
-    {
-        return new topo_pentagon_event(*this);
-    }
-    
-    void serialize_order(SST::Core::Serialization::serializer &ser) 
-    {
-        internal_router_event::serialize_order(ser);
-        ser & src_group;
-        ser & dest.subnet;
-        ser & dest.local;
-    }
-    
-private:
-    ImplementSerializable(SST::Merlin::topo_pentagon_event)
-    
-};
-
 class topo_pentagon: public Topology {
     
     // global router id
@@ -58,14 +33,16 @@ class topo_pentagon: public Topology {
     uint32_t hosts_per_router;
     // the start router id of this group
     uint32_t start_router_id;
+    // in cases this is used to build larger graph
+    uint32_t routers_per_subnet;
+    // num of adjacent routers
+    uint32_t num_neighbors;
+    // num of ports going out of this pentagon
+    uint32_t outgoing_ports;
     // the start host id under this router
     // uint32_t start_host_id;
     // the routing of fishnet is based on subnet and local router within subnet
-    struct fishnetAddr {
-        uint32_t subnet;
-        uint32_t router;
-        uint32_t host;
-    };
+    
     
     // only implemented MINIMAL for now... 
     enum RouteAlgo {
@@ -75,11 +52,16 @@ class topo_pentagon: public Topology {
     };
     
     RouteAlgo algorithm;
-    fishnetAddr addr;
+    
     
 public:
+    struct fishnetAddr {
+        uint32_t subnet;
+        uint32_t router;
+        uint32_t host;
+    };
     topo_pentagon(Component* comp, Params& params);
-    ~topo_torus();
+    ~topo_pentagon();
     
     virtual void route(int port, int vc, internal_router_event* ev);
     virtual internal_router_event* process_input(RtrEvent* ev);
@@ -96,9 +78,40 @@ protected:
     virtual int choose_multipath(int start_port, int num_ports, int dest_dist);
     
 private:
-    void idToLocation(int id, int *location) const;
-    int get_dest_router(int dest_id) const;
-    int get_dest_local_port(int dest_id) const; 
+    fishnetAddr addr;
+    void id_to_location(int id, fishnetAddr *location) const;
+};
+
+
+class topo_pentagon_event : public internal_router_event {
+    /* Assumed connectivity of each router:
+     * ports [0, hosts_per_router-1]:      Hosts
+     * ports [hosts_per_router, hosts_per_router+num_neighbors-1]:    Intra-group
+     * ports [hosts_per_router+num_neighbors, total_ports]:  Inter-group
+     */
+public:
+    uint32_t src_subnet;
+    topo_pentagon::fishnetAddr dest;
+    topo_pentagon_event() {}
+    topo_pentagon_event(const topo_pentagon::fishnetAddr &dest) : dest(dest) {}
+    ~topo_pentagon_event() {}
+    virtual internal_router_event* clone(void)
+    {
+        return new topo_pentagon_event(*this);
+    }
+    
+    void serialize_order(SST::Core::Serialization::serializer &ser) 
+    {
+        internal_router_event::serialize_order(ser);
+        ser & src_subnet;
+        ser & dest.subnet;
+        ser & dest.router;
+        ser & dest.host;
+    }
+    
+private:
+    ImplementSerializable(SST::Merlin::topo_pentagon_event)
+    
 };
 
 }
