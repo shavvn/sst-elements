@@ -34,6 +34,7 @@
 #include "topology/fattree.h"
 #include "topology/dragonfly.h"
 #include "topology/dragonfly2.h"
+#include "topology/pentagon.h"
 
 #include "hr_router/xbar_arb_rr.h"
 #include "hr_router/xbar_arb_lru.h"
@@ -390,6 +391,25 @@ static const ElementInfoParam dragonfly2_params[] = {
     {"dragonfly:global_route_mode","Mode for intepreting global link map [absolute (default) | relative].","absolute"},
     {NULL,NULL,NULL}
 };
+
+// topo pentagon
+static SubComponent*
+load_pentagon_topology(Component* comp, Params& params)
+{
+    return new topo_pentagon(comp, params);
+}
+
+static const ElementInfoParam pentagon_params[] = {
+    {"pentagon:hosts_per_router", "Number of hosts connected to each router.", "1"},
+    {"pentagon:routers_per_subnet", "(Optional) Number of routers per subnet.", "5"},
+    {"pentagon:outgoing_ports", "(Optional) Number of ports going out of the subnet.", "0"},
+    {"pentagon:num_neighbors", "(Optional) Number of neighbors a router has.", "2"},
+    {"pentagon:start_router_id", "The router_id of the first router in this pentagon."},
+    {"pentagon:algorithm", "Routing algorithms, only minimal for now.", "minimal"},
+    {"pentagon:subnet", "Address: Subnet number", "0"},
+    {"pentagon:router", "Address: router number within subnet"},
+    {NULL, NULL, NULL}
+}
 
 
 // Crossbar arbitration units
@@ -784,6 +804,14 @@ static const ElementInfoSubComponent subcomponents[] = {
       NULL,
       load_dragonfly2_topology,
       dragonfly2_params,
+      NULL,
+      "SST::Merlin::Topology"
+    },
+    { "pentagon",
+      "Pentagon topology object",
+      NULL,
+      load_pentagon_topology,
+      pentagon_params,
       NULL,
       "SST::Merlin::Topology"
     },

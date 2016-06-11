@@ -43,6 +43,8 @@ libmerlin_la_SOURCES = \
 	topology/dragonfly2.cc \
 	topology/singlerouter.h \
 	topology/singlerouter.cc \
+	topology/pentagon.h \
+	topology/pentagon.cc \
 	hr_router/hr_router.h \
 	hr_router/hr_router.cc \
 	hr_router/xbar_arb_age.h \
