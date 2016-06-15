@@ -15,6 +15,7 @@
 #include "topology/torus.h"
 #include "topology/dragonfly.h"
 #include "topology/dragonfly2.h"
+#include "topology/pentagon.h"
 #include "reorderLinkControl.h"
 
 // put all of the exports for events derived from interal_router_event 

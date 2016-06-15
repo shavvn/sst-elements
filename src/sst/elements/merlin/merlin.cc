@@ -392,6 +392,7 @@ static const ElementInfoParam dragonfly2_params[] = {
     {NULL,NULL,NULL}
 };
 
+
 // topo pentagon
 static SubComponent*
 load_pentagon_topology(Component* comp, Params& params)
@@ -401,15 +402,13 @@ load_pentagon_topology(Component* comp, Params& params)
 
 static const ElementInfoParam pentagon_params[] = {
     {"pentagon:hosts_per_router", "Number of hosts connected to each router.", "1"},
-    {"pentagon:routers_per_subnet", "(Optional) Number of routers per subnet.", "5"},
     {"pentagon:outgoing_ports", "(Optional) Number of ports going out of the subnet.", "0"},
-    {"pentagon:num_neighbors", "(Optional) Number of neighbors a router has.", "2"},
-    {"pentagon:start_router_id", "The router_id of the first router in this pentagon."},
+    {"pentagon:start_router_id", "The router_id of the first router in this pentagon.", "0"},
     {"pentagon:algorithm", "Routing algorithms, only minimal for now.", "minimal"},
     {"pentagon:subnet", "Address: Subnet number", "0"},
     {"pentagon:router", "Address: router number within subnet"},
     {NULL, NULL, NULL}
-}
+};
 
 
 // Crossbar arbitration units
