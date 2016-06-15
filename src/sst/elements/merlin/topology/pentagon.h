@@ -18,15 +18,20 @@
 #include <sst/core/link.h>
 #include <sst/core/params.h>
 
-#include <string.h>
 
 #include "sst/elements/merlin/router.h"
 
 namespace SST {
 namespace Merlin {
-    
+
+class topo_pentagon_event;
+
 class topo_pentagon: public Topology {
-    
+    /* Assumed connectivity of each router:
+     * ports [0, hosts_per_router-1]:      Hosts
+     * ports [hosts_per_router, hosts_per_router+num_neighbors-1]:    Intra-group
+     * ports [hosts_per_router+num_neighbors, total_ports]:  ports used to construct hs graph
+     */    
     // global router id
     uint32_t router_id;
     // hosts per router, all routers should have the same value of this
@@ -35,14 +40,13 @@ class topo_pentagon: public Topology {
     uint32_t start_router_id;
     // in cases this is used to build larger graph
     uint32_t routers_per_subnet;
-    // num of adjacent routers
-    uint32_t num_neighbors;
+    // ports talking within this subnet, should be 2 by default
+    uint32_t local_ports;
     // num of ports going out of this pentagon
     uint32_t outgoing_ports;
-    // the start host id under this router
-    // uint32_t start_host_id;
     // the routing of fishnet is based on subnet and local router within subnet
-    
+    uint32_t subnet;
+    uint32_t router;
     
     // only implemented MINIMAL for now... 
     enum RouteAlgo {
@@ -52,7 +56,6 @@ class topo_pentagon: public Topology {
     };
     
     RouteAlgo algorithm;
-    
     
 public:
     struct fishnetAddr {
@@ -66,35 +69,32 @@ public:
     virtual void route(int port, int vc, internal_router_event* ev);
     virtual internal_router_event* process_input(RtrEvent* ev);
     
+    virtual PortState getPortState(int port) const;
+    virtual std::string getPortLogicalGroup(int port) const;
+    
     virtual void routeInitData(int port, internal_router_event* ev, std::vector<int> &outPorts);
     virtual internal_router_event* process_InitData_input(RtrEvent* ev);
 
-    virtual PortState getPortState(int port) const;
-    virtual int computeNumVCs(int vns);
+    
+    virtual int computeNumVCs(int vns) { return vns * 3; }
     virtual int getEndpointID(int port);
-    uint32_t localToGlobalID(uint32_t local_num);
-
-protected:
-    virtual int choose_multipath(int start_port, int num_ports, int dest_dist);
     
 private:
-    fishnetAddr addr;
     void id_to_location(int id, fishnetAddr *location) const;
+    
 };
 
 
 class topo_pentagon_event : public internal_router_event {
-    /* Assumed connectivity of each router:
-     * ports [0, hosts_per_router-1]:      Hosts
-     * ports [hosts_per_router, hosts_per_router+num_neighbors-1]:    Intra-group
-     * ports [hosts_per_router+num_neighbors, total_ports]:  Inter-group
-     */
+
 public:
     uint32_t src_subnet;
     topo_pentagon::fishnetAddr dest;
+    
     topo_pentagon_event() {}
     topo_pentagon_event(const topo_pentagon::fishnetAddr &dest) : dest(dest) {}
     ~topo_pentagon_event() {}
+    
     virtual internal_router_event* clone(void)
     {
         return new topo_pentagon_event(*this);
@@ -110,7 +110,7 @@ public:
     }
     
 private:
-    ImplementSerializable(SST::Merlin::topo_pentagon_event)
+    ImplementSerializable(SST::Merlin::topo_pentagon_event);
     
 };
 
