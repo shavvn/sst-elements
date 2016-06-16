@@ -71,21 +71,16 @@ void topo_pentagon::route(int port, int vc, internal_router_event* ev)
     
     if (tp_ev->dest.subnet != subnet) {
         // target is not this subnet
-        // TODO decode which port should it be sent to 
-        // for fishnet lite, this is easy, just go to correspoding router
-        // for fishnet, find the neighbors of correspoding router
-        // and then figure out which neighbor is closer...
+        // only implement for angelfish-lite for now.. 
+        if (tp_ev->dest.subnet == router) {
+            next_port = hosts_per_router + local_ports;
+        } else {
+            next_port = port_for_router(tp_ev->dest.subnet);
+        }
     } else if ( tp_ev->dest.router != router) {
         // not this router, forward to other routers in this subnet
         // trivial routing
-        if (tp_ev->dest.router == ((router+1)%5) || 
-            tp_ev->dest.router == ((router+2)%5)) {
-            // left side
-            next_port = hosts_per_router;
-        } else {
-            // right side
-            next_port = hosts_per_router + 1;
-        }
+        next_port = port_for_router(tp_ev->dest.router);
     } else {
         // this router
         next_port = tp_ev->dest.host;
@@ -102,7 +97,7 @@ internal_router_event* topo_pentagon::process_input(RtrEvent* ev)
     topo_pentagon::fishnetAddr destAddr = {0, 0, 0};
     id_to_location(ev->request->dest, &destAddr);
     topo_pentagon_event *tp_ev = new topo_pentagon_event(destAddr);
-    // TODO if to implement other algorithm, need to add stuff..
+    // if to implement other algorithm, need to add stuff..
     
     tp_ev->src_subnet = subnet;
     tp_ev->setEncapsulatedEvent(ev);
@@ -135,7 +130,6 @@ void topo_pentagon::routeInitData(int port, internal_router_event* ev, std::vect
                 outPorts.push_back((int)p);
             }
             if (tp_ev->src_subnet = subnet) {
-                
                 for (uint32_t p = (hosts_per_router+local_ports); p < total_ports; p++) {
                     outPorts.push_back((int)p);
                 }
@@ -202,6 +196,17 @@ void topo_pentagon::id_to_location(int id, fishnetAddr *location) const
 }
 
 
+uint32_t topo_pentagon::port_for_router(uint32_t dest_router) const 
+{
+    if (dest_router == ((router+1)%5) || 
+        dest_router == ((router+2)%5)) {
+        // left side
+        return hosts_per_router;
+    } else {
+        // right side
+        return hosts_per_router + 1;
+    }
+}
 
 /*
 uint32_t topo_pentagon::router_to_subnet(uint32_t subnet) const

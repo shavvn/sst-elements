@@ -81,6 +81,7 @@ public:
     
 private:
     void id_to_location(int id, fishnetAddr *location) const;
+    uint32_t port_for_router(uint32_t dest_router) const;
     
 };
 
