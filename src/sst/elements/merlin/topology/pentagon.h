@@ -28,14 +28,14 @@ class topo_pentagon_event;
 
 class topo_pentagon: public Topology {
     /* Assumed connectivity of each router:
-     * ports [0, hosts_per_router-1]:      Hosts
-     * ports [hosts_per_router, hosts_per_router+num_neighbors-1]:    Intra-group
-     * ports [hosts_per_router+num_neighbors, total_ports]:  ports used to construct hs graph
+     * ports [0, host_ports-1]:      Hosts
+     * ports [host_ports, host_ports+num_neighbors-1]:    Intra-group
+     * ports [host_ports+num_neighbors, total_ports]:  ports used to construct hs graph
      */    
     // global router id
     uint32_t router_id;
     // hosts per router, all routers should have the same value of this
-    uint32_t hosts_per_router;
+    uint32_t host_ports;
     // the start router id of this group
     uint32_t start_router_id;
     // in cases this is used to build larger graph

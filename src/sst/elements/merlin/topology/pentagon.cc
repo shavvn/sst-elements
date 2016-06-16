@@ -17,9 +17,9 @@
 using namespace SST::Merlin;
 
 /* Assumed connectivity of each router:
- * ports [0, hosts_per_router-1]:      Hosts
- * ports [hosts_per_router, hosts_per_router+num_neighbors-1]:    Intra-group
- * ports [hosts_per_router+num_neighbors, total_ports]:  ports used to construct hs graph
+ * ports [0, host_ports-1]:      Hosts
+ * ports [host_ports, host_ports+num_neighbors-1]:    Intra-group
+ * ports [host_ports+num_neighbors, total_ports]:  ports used to construct hs graph
  */ 
 
 topo_pentagon::topo_pentagon(Component* comp, Params& params) :
@@ -31,7 +31,7 @@ topo_pentagon::topo_pentagon(Component* comp, Params& params) :
         output.fatal(CALL_INFO, -1, "id must be set\n");
     }
     
-    hosts_per_router = (uint32_t)params.find<int>("pentagon:hosts_per_router", 1);
+    host_ports = (uint32_t)params.find<int>("pentagon:host_ports", 1);
     uint32_t num_ports = (uint32_t)params.find<int>("num_ports");
     outgoing_ports = (uint32_t)params.find<int>("pentagon:outgoing_ports", 0);
     local_ports = 2;
@@ -62,7 +62,7 @@ void topo_pentagon::route(int port, int vc, internal_router_event* ev)
 {
     topo_pentagon_event *tp_ev = static_cast<topo_pentagon_event*>(ev);
     uint32_t local_ports = 2;
-    if ( (uint32_t)port > (hosts_per_router + local_ports) ) {
+    if ( (uint32_t)port > (host_ports + local_ports) ) {
         /* Came in from another subnet.  Increment VC */
         tp_ev->setVC(vc+1);
     }
@@ -73,7 +73,7 @@ void topo_pentagon::route(int port, int vc, internal_router_event* ev)
         // target is not this subnet
         // only implement for angelfish-lite for now.. 
         if (tp_ev->dest.subnet == router) {
-            next_port = hosts_per_router + local_ports;
+            next_port = host_ports + local_ports;
         } else {
             next_port = port_for_router(tp_ev->dest.subnet);
         }
@@ -113,24 +113,24 @@ void topo_pentagon::routeInitData(int port, internal_router_event* ev, std::vect
     topo_pentagon_event *tp_ev = static_cast<topo_pentagon_event*>(ev);
     if ( tp_ev->dest.host == (uint32_t)INIT_BROADCAST_ADDR ) {
         uint32_t local_ports = 2;
-        uint32_t total_ports = hosts_per_router + local_ports + outgoing_ports;
-        if ( (uint32_t)port >= (hosts_per_router + local_ports ) ) {
+        uint32_t total_ports = host_ports + local_ports + outgoing_ports;
+        if ( (uint32_t)port >= (host_ports + local_ports ) ) {
             /* Came in from another subnet.
              * Send to locals, and other routers in subnet
              */
-            for ( uint32_t p = 0; p < (hosts_per_router + local_ports ); p++ ) {
+            for ( uint32_t p = 0; p < (host_ports + local_ports ); p++ ) {
                 outPorts.push_back((int)p);
             }
-        } else if ( (uint32_t)port >= hosts_per_router ) {
+        } else if ( (uint32_t)port >= host_ports ) {
             /* Came in from another router in subnet.
              * send to hosts
              * if this is the source subnet, send to other subnets
              */
-            for ( uint32_t p = 0; p < hosts_per_router; p++ ) {
+            for ( uint32_t p = 0; p < host_ports; p++ ) {
                 outPorts.push_back((int)p);
             }
             if (tp_ev->src_subnet = subnet) {
-                for (uint32_t p = (hosts_per_router+local_ports); p < total_ports; p++) {
+                for (uint32_t p = (host_ports+local_ports); p < total_ports; p++) {
                     outPorts.push_back((int)p);
                 }
             } 
@@ -165,20 +165,20 @@ internal_router_event* topo_pentagon::process_InitData_input(RtrEvent* ev)
 
 Topology::PortState topo_pentagon::getPortState(int port) const
 {
-    if ((uint32_t)port < hosts_per_router) return R2N;
+    if ((uint32_t)port < host_ports) return R2N;
     else return R2R;
 }
 
 std::string topo_pentagon::getPortLogicalGroup(int port) const
 {
-    if ((uint32_t)port < hosts_per_router) return "host";
-    if ((uint32_t)port >= hosts_per_router && (uint32_t)port < (hosts_per_router + 2)) return "group";
+    if ((uint32_t)port < host_ports) return "host";
+    if ((uint32_t)port >= host_ports && (uint32_t)port < (host_ports + 2)) return "group";
     else return "global";
 }
 
 int topo_pentagon::getEndpointID(int port)
 {
-    return (subnet* (routers_per_subnet * hosts_per_router)) + router*hosts_per_router + port;
+    return (subnet* (routers_per_subnet * host_ports)) + router*host_ports + port;
 }
 
 void topo_pentagon::id_to_location(int id, fishnetAddr *location) const
@@ -188,10 +188,10 @@ void topo_pentagon::id_to_location(int id, fishnetAddr *location) const
         location->router = (uint32_t)INIT_BROADCAST_ADDR;
         location->host = (uint32_t)INIT_BROADCAST_ADDR;
     } else {
-        uint32_t hosts_per_subnet = hosts_per_router * routers_per_subnet;
+        uint32_t hosts_per_subnet = host_ports * routers_per_subnet;
         location->subnet = id / hosts_per_subnet;
-        location->router = (id % hosts_per_subnet) / hosts_per_router;
-        location->host = id % hosts_per_router;
+        location->router = (id % hosts_per_subnet) / host_ports;
+        location->host = id % host_ports;
     }
 }
 
@@ -201,10 +201,10 @@ uint32_t topo_pentagon::port_for_router(uint32_t dest_router) const
     if (dest_router == ((router+1)%5) || 
         dest_router == ((router+2)%5)) {
         // left side
-        return hosts_per_router;
+        return host_ports;
     } else {
         // right side
-        return hosts_per_router + 1;
+        return host_ports + 1;
     }
 }
 
