@@ -733,8 +733,73 @@ class topoDragonFly2(Topo):
                 router_num = router_num +1
 
 
-
-
+class topoPentagon(Topo):
+    def __init__(self):
+        Topo.__init__(self)
+        self.topoKeys = ["topology", "debug", "num_ports", "flit_size", "link_bw", "xbar_bw", "pentagon:hosts_per_router", "input_latency","output_latency", "input_buf_size","output_buf_size"]
+        self.topoOptKeys = ["pentagon:interconnect","pentagon:algorithm", "pentagon:outgoing_ports", "pentagon:routers_per_subnet", "pentagon:start_router_id", "pentagon:subnet", "pentagon:router","xbar_arb","link_bw:host","link_bw:group","link_bw:global", "input_latency:host","input_latency:group","input_latency:global","output_latency:host","output_latency:group","output_latency:global","input_buf_size:host","input_buf_size:group","input_buf_size:global","output_buf_size:host","output_buf_size:group","output_buf_size:global",]
+        
+    def getName(self):
+        return "Pentagon"
+    
+    def prepParams(self):
+        _params["topology"] = "merlin.pentagon"
+        _params["debug"] = 1
+        _params["num_vns"] = 1
+        # _params["router_radix"] = int(_params["router_radix"])
+        _params["num_ports"] = 4 # int(_params["router_radix"])
+        _params["pentagon:hosts_per_router"] = int(_params["pentagon:hosts_per_router"])
+        # _params["pentagon:routers_per_subnet"] = int(_params["pentagon:routers_per_subnet"])
+        # _params["pentagon:num_neighbors"] = int(_params["pentagon:num_neighbors"])
+        _params["pentagon:outgoing_ports"] = int(_params["pentagon:outgoing_ports"])
+        
+    
+    def build(self):
+        links = dict()
+        def getLink(name):
+            if name not in links:
+                links[name] = sst.Link(name)
+            return links[name]
+        
+        router_num = 0
+        nic_num = 0
+        
+        if _params["pentagon:outgoing_ports"] == 0:  # just a pentagon
+            for r in xrange(5):
+                rtr = sst.Component("rtr:R%d"%(r), "merlin.hr_router")
+                rtr.addParams(_params.subset(self.topoKeys, self.topoOptKeys))
+                rtr.addParam("id", router_num)
+                rtr.addParam("pentagon:router", r)
+                rtr.addParam("pentagon:subnet", 0)
+                
+                port = 0
+                for p in xrange(_params["pentagon:hosts_per_router"]):
+                    ep = self._getEndPoint(nic_num).build(nic_num, {})
+                    if ep:
+                        link = sst.Link("link:r%dh%d"%(r, p))
+                        link.connect(ep, (rtr, "port%d"%port, _params["link_lat"]))
+                        # print "connecting ep %d to router %d"%(nic_num, r)
+                    nic_num += 1
+                    port += 1 
+                
+                # routers to be connected to
+                left_rtr = (r + 4) % 5
+                right_rtr = (r + 1 ) % 5
+                src = min(r, left_rtr)
+                dest = max(r, left_rtr)
+                rtr.addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])
+                # print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
+                port += 1
+                src = min(r, right_rtr)
+                dest = max(r, right_rtr)
+                rtr.addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])
+                # print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
+                router_num += 1 
+        else:  # hoffman-singlton graph
+            print "not ready yet!"
+            sys.exit(1)
+      
+        
 ############################################################################
 
 class EndPoint:
@@ -903,7 +968,7 @@ class TrafficGenEndPoint(EndPoint):
 
 
 if __name__ == "__main__":
-    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple())])
+    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), (5,topoPentagon()) ]) # 
     endpoints = dict([(1,TestEndPoint()), (2, TrafficGenEndPoint()), (3, BisectionEndPoint())])
 
 

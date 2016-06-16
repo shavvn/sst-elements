@@ -57,12 +57,23 @@ class topo_pentagon: public Topology {
     
     RouteAlgo algorithm;
     
+    // Add this to diameter-2 graphs for AF net construction
+    enum FishnetType {
+        NONE,
+        FISH_LITE,
+        FISHNET
+    };
+    
+    FishnetType net_type;
+    
 public:
     struct fishnetAddr {
         uint32_t subnet;
         uint32_t router;
         uint32_t host;
     };
+    
+    
     topo_pentagon(Component* comp, Params& params);
     ~topo_pentagon();
     

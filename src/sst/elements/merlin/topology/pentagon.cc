@@ -31,7 +31,7 @@ topo_pentagon::topo_pentagon(Component* comp, Params& params) :
         output.fatal(CALL_INFO, -1, "id must be set\n");
     }
     
-    host_ports = (uint32_t)params.find<int>("pentagon:host_ports", 1);
+    host_ports = (uint32_t)params.find<int>("pentagon:hosts_per_router", 1);
     uint32_t num_ports = (uint32_t)params.find<int>("num_ports");
     outgoing_ports = (uint32_t)params.find<int>("pentagon:outgoing_ports", 0);
     local_ports = 2;
@@ -40,14 +40,25 @@ topo_pentagon::topo_pentagon(Component* comp, Params& params) :
     // num_neighbors = (uint32_t)params.find<int>("pentagon:num_neighbors", 2);
     start_router_id = (uint32_t)params.find<int>("pentagon:start_router_id", -1);
     std::string route_algo = params.find<std::string>("pentagon:algorithm", "minimal");
-
     
     if (!route_algo.compare("minimal")) {
         // TODO implement other algorithms later
         algorithm = MINIMAL;
     }
     
-    subnet = (uint32_t)params.find<int>("pentagon:subnet", 0);
+    std::string interconnect = params.find<std::string>("pentagon:interconnect", "none");
+    
+    if (interconnect.compare("fish_lite")) {
+        subnet = (uint32_t)params.find<int>("pentagon:subnet", 0);
+        net_type = FISH_LITE;
+    } else if (interconnect.compare("fishnet")) {
+        subnet = (uint32_t)params.find<int>("pentagon:subnet", 0);
+        net_type = FISHNET;
+    } else {
+        // just a pentagon
+        subnet = 0; 
+        net_type = NONE;
+    }
     router = (uint32_t)params.find<int>("pentagon:router", 0);
     
 }
@@ -71,12 +82,15 @@ void topo_pentagon::route(int port, int vc, internal_router_event* ev)
     
     if (tp_ev->dest.subnet != subnet) {
         // target is not this subnet
-        // only implement for angelfish-lite for now.. 
-        if (tp_ev->dest.subnet == router) {
-            next_port = host_ports + local_ports;
-        } else {
-            next_port = port_for_router(tp_ev->dest.subnet);
+        // only implement for angelfish_lite for now..
+        if (net_type == FISH_LITE) {
+            if (tp_ev->dest.subnet == router) {
+                next_port = host_ports + local_ports;
+            } else {
+                next_port = port_for_router(tp_ev->dest.subnet);
+            }
         }
+        
     } else if ( tp_ev->dest.router != router) {
         // not this router, forward to other routers in this subnet
         // trivial routing

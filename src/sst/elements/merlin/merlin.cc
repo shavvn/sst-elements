@@ -405,6 +405,7 @@ static const ElementInfoParam pentagon_params[] = {
     {"pentagon:outgoing_ports", "(Optional) Number of ports going out of the subnet.", "0"},
     {"pentagon:start_router_id", "The router_id of the first router in this pentagon.", "0"},
     {"pentagon:algorithm", "Routing algorithms, only minimal for now.", "minimal"},
+    {"pentagon:interconnect", "Interconnect type, fish_lite, fish_net, or none", "none"},
     {"pentagon:subnet", "Address: Subnet number", "0"},
     {"pentagon:router", "Address: router number within subnet"},
     {NULL, NULL, NULL}
