@@ -738,6 +738,9 @@ class topoPentagon(Topo):
         Topo.__init__(self)
         self.topoKeys = ["topology", "debug", "num_ports", "flit_size", "link_bw", "xbar_bw", "pentagon:hosts_per_router", "input_latency","output_latency", "input_buf_size","output_buf_size"]
         self.topoOptKeys = ["pentagon:interconnect","pentagon:algorithm", "pentagon:outgoing_ports", "pentagon:routers_per_subnet", "pentagon:start_router_id", "pentagon:subnet", "pentagon:router","xbar_arb","link_bw:host","link_bw:group","link_bw:global", "input_latency:host","input_latency:group","input_latency:global","output_latency:host","output_latency:group","output_latency:global","input_buf_size:host","input_buf_size:group","input_buf_size:global","output_buf_size:host","output_buf_size:group","output_buf_size:global",]
+        self.addr = {}  # only fishnet will use this
+        self.rtrs = []
+        self.rtr_ids = []
         
     def getName(self):
         return "Pentagon"
@@ -747,12 +750,99 @@ class topoPentagon(Topo):
         _params["debug"] = 1
         _params["num_vns"] = 1
         # _params["router_radix"] = int(_params["router_radix"])
-        _params["num_ports"] = 4 # int(_params["router_radix"])
+        _params["num_ports"] = 4 # TODO shouldn't be arbitry
         _params["pentagon:hosts_per_router"] = int(_params["pentagon:hosts_per_router"])
         # _params["pentagon:routers_per_subnet"] = int(_params["pentagon:routers_per_subnet"])
         # _params["pentagon:num_neighbors"] = int(_params["pentagon:num_neighbors"])
         _params["pentagon:outgoing_ports"] = int(_params["pentagon:outgoing_ports"])
         
+        # these following 2 params should only be in python 
+        # _params["pentagon:router_start_id"] = int(_params["pentagon:router_start_id"])
+        # _params["pentagon:host_start_id"] = int(_params["pentagon:host_start_id"])
+                
+        
+    def router(self, r):
+        r = (r%5)
+        return self.rtrs[r]
+    
+    def setRtrParams(self, rtr_id, params):
+        self.rtrs[rtr_id].addParams(params)
+    
+    def setEpParams(self, ep_id, params):
+        ep = self._getEndPoint(ep_id)
+        ep.addParams(params)
+    
+    def build(self):
+        links = dict()
+        def getLink(name):
+            if name not in links:
+                links[name] = sst.Link(name)
+            return links[name]
+        
+        router_num = self.addr["router_start_id"]
+        nic_num = self.addr["host_start_id"]
+        subnet_num = _params["pentagon:subnet"]
+        # code is so messed up for using a global variable for params
+        for r in xrange(5):
+            rtr = sst.Component("rtr:G%dR%d"%(subnet_num, r), "merlin.hr_router")
+            rtr.addParams(_params.subset(self.topoKeys, self.topoOptKeys))
+            rtr.addParam("id", router_num)
+            rtr.addParam("pentagon:router", r)
+            self.rtrs.append(rtr)
+            self.rtr_ids.append(router_num)
+            
+            port = 0
+            for p in xrange(_params["pentagon:hosts_per_router"]):
+                ep = self._getEndPoint(nic_num).build(nic_num, {})
+                if ep:
+                    link = sst.Link("link:g%dr%dh%d"%(subnet_num, r, p))
+                    link.connect(ep, (rtr, "port%d"%port, _params["link_lat"]))
+                    # print "connecting ep %d to router %d"%(nic_num, r)
+                nic_num += 1
+                port += 1 
+            
+            # routers to be connected to
+            left_rtr = (r + 4) % 5
+            right_rtr = (r + 1 ) % 5
+            src = min(r, left_rtr)
+            dest = max(r, left_rtr)
+            rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src, dest)), "port%d"%port, _params["link_lat"])
+            print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
+            port += 1
+            src = min(r, right_rtr)
+            dest = max(r, right_rtr)
+            rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src, dest)), "port%d"%port, _params["link_lat"])
+            print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
+            router_num += 1 
+      
+
+class topoFishLite(Topo):
+    def __init__(self):
+        Topo.__init__(self)
+        self.topoKeys = ["fishlite:subnet_topo", "fishlite:routers_per_subnet", "fishlite:subnet_degree"]
+        self.topoOptKeys = []
+        self.subnet_topo = sys.modules[__name__]
+        self.end_point = None
+        sst.setStatisticLoadLevel(0)
+    def getName(self):
+        return "Fishnet Lite"
+        
+    def prepParams(self):
+        _params["fishlite:subnet_topo"] = str(_params["fishlite:subnet_topo"])
+        _params["fishlite:hosts_per_router"] = int(_params["fishlite:hosts_per_router"])
+        _params["fishlite:routers_per_subnet"] = int(_params["fishlite:routers_per_subnet"])
+        _params["fishlite:subnet_degree"] = int(_params["fishlite:subnet_degree"])
+        sub_topo_name = _params["fishlite:subnet_topo"]
+        sub_topo_key = sub_topo_name + ":" + "hosts_per_router"
+        _params[sub_topo_key] = _params["fishlite:hosts_per_router"]
+        sub_topo_key = sub_topo_name + ":" + "outgoing_ports"
+        _params[sub_topo_key] = 1
+        topo_cls_name = "topo" + sub_topo_name.capitalize()
+        self.subnet_topo = getattr(self.subnet_topo, topo_cls_name)
+    
+    def setEndPoint(self, endPoint):
+        Topo.setEndPoint(self, endPoint)
+        self.end_point = endPoint
     
     def build(self):
         links = dict()
@@ -763,43 +853,42 @@ class topoPentagon(Topo):
         
         router_num = 0
         nic_num = 0
-        
-        if _params["pentagon:outgoing_ports"] == 0:  # just a pentagon
-            for r in xrange(5):
-                rtr = sst.Component("rtr:R%d"%(r), "merlin.hr_router")
-                rtr.addParams(_params.subset(self.topoKeys, self.topoOptKeys))
-                rtr.addParam("id", router_num)
-                rtr.addParam("pentagon:router", r)
-                rtr.addParam("pentagon:subnet", 0)
+        # only support diameter-2 subnets
+        if _params["fishlite:subnet_topo"] == "pentagon":
+            # sub net are pentagons
+            subnets = []
+            for i in xrange(6):  # 5 + 1 subnets 
+                print "building pentagon " + str(i) + " router starts at " + \
+                    str(router_num) + " host start at " + str(nic_num)
+                _params["pentagon:subnet"] = i
+                pentagon = topoPentagon()
+                pentagon.prepParams()
+                pentagon.setEndPoint(self.end_point)
+                # pentagon.addParam("pentagon:subnet", i)
+                pentagon.addr["router_start_id"] = router_num
+                pentagon.addr["host_start_id"] = nic_num
+                pentagon.build()
+                subnets.append(pentagon)
+                router_num += 5
+                nic_num += (5*_params["fishlite:hosts_per_router"]) 
                 
-                port = 0
-                for p in xrange(_params["pentagon:hosts_per_router"]):
-                    ep = self._getEndPoint(nic_num).build(nic_num, {})
-                    if ep:
-                        link = sst.Link("link:r%dh%d"%(r, p))
-                        link.connect(ep, (rtr, "port%d"%port, _params["link_lat"]))
-                        # print "connecting ep %d to router %d"%(nic_num, r)
-                    nic_num += 1
-                    port += 1 
-                
-                # routers to be connected to
-                left_rtr = (r + 4) % 5
-                right_rtr = (r + 1 ) % 5
-                src = min(r, left_rtr)
-                dest = max(r, left_rtr)
-                rtr.addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])
-                # print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
-                port += 1
-                src = min(r, right_rtr)
-                dest = max(r, right_rtr)
-                rtr.addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])
-                # print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
-                router_num += 1 
-        else:  # hoffman-singlton graph
-            print "not ready yet!"
+            # for subnet 0~6, connect sub[i]router[j] to sub[j]router[i]
+            port = _params["fishlite:hosts_per_router"] + 2  # only 1 extra port needed for angelfish 
+            for i in range(6):
+                for j in range(i, 5):
+                    src = min(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
+                    dest = max(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
+                    subnets[i].router(j).addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])
+                    subnets[j+1].router(i).addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])
+                    print "connecting subnet " + str(i) + " router " + str(j) + \
+                        "(" + str(subnets[i].rtr_ids[j]) + ")" + \
+                        " to subnet " + str(j+1) + " router " + str(i) + \
+                        "(" + str(subnets[j+1].rtr_ids[i]) + ")" + "at port " + str(port)
+        else:
+            print "not supported for now..."
             sys.exit(1)
       
-        
+      
 ############################################################################
 
 class EndPoint:
@@ -968,7 +1057,7 @@ class TrafficGenEndPoint(EndPoint):
 
 
 if __name__ == "__main__":
-    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), (5,topoPentagon()) ]) # 
+    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), (5,topoPentagon()), (6, topoFishLite()) ]) # 
     endpoints = dict([(1,TestEndPoint()), (2, TrafficGenEndPoint()), (3, BisectionEndPoint())])
 
 
