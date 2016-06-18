@@ -737,8 +737,8 @@ class topoPentagon(Topo):
     def __init__(self):
         Topo.__init__(self)
         self.topoKeys = ["topology", "debug", "num_ports", "flit_size", "link_bw", "xbar_bw", "pentagon:hosts_per_router", "input_latency","output_latency", "input_buf_size","output_buf_size"]
-        self.topoOptKeys = ["pentagon:interconnect","pentagon:algorithm", "pentagon:outgoing_ports", "pentagon:routers_per_subnet", "pentagon:start_router_id", "pentagon:subnet", "pentagon:router","xbar_arb","link_bw:host","link_bw:group","link_bw:global", "input_latency:host","input_latency:group","input_latency:global","output_latency:host","output_latency:group","output_latency:global","input_buf_size:host","input_buf_size:group","input_buf_size:global","output_buf_size:host","output_buf_size:group","output_buf_size:global",]
-        self.addr = {}  # only fishnet will use this
+        self.topoOptKeys = ["pentagon:interconnect","pentagon:algorithm", "pentagon:outgoing_ports", "pentagon:routers_per_subnet", "pentagon:subnet", "pentagon:router","xbar_arb","link_bw:host","link_bw:group","link_bw:global", "input_latency:host","input_latency:group","input_latency:global","output_latency:host","output_latency:group","output_latency:global","input_buf_size:host","input_buf_size:group","input_buf_size:global","output_buf_size:host","output_buf_size:group","output_buf_size:global",]
+        self.attr = {}  # attributes for fishnet 
         self.rtrs = []
         self.rtr_ids = []
         
@@ -749,17 +749,9 @@ class topoPentagon(Topo):
         _params["topology"] = "merlin.pentagon"
         _params["debug"] = 1
         _params["num_vns"] = 1
-        # _params["router_radix"] = int(_params["router_radix"])
-        _params["num_ports"] = 4 # TODO shouldn't be arbitry
         _params["pentagon:hosts_per_router"] = int(_params["pentagon:hosts_per_router"])
-        # _params["pentagon:routers_per_subnet"] = int(_params["pentagon:routers_per_subnet"])
-        # _params["pentagon:num_neighbors"] = int(_params["pentagon:num_neighbors"])
         _params["pentagon:outgoing_ports"] = int(_params["pentagon:outgoing_ports"])
-        
-        # these following 2 params should only be in python 
-        # _params["pentagon:router_start_id"] = int(_params["pentagon:router_start_id"])
-        # _params["pentagon:host_start_id"] = int(_params["pentagon:host_start_id"])
-                
+        _params["num_ports"] = _params["pentagon:hosts_per_router"] + _params["pentagon:outgoing_ports"] + 2
         
     def router(self, r):
         r = (r%5)
@@ -779,8 +771,8 @@ class topoPentagon(Topo):
                 links[name] = sst.Link(name)
             return links[name]
         
-        router_num = self.addr["router_start_id"]
-        nic_num = self.addr["host_start_id"]
+        router_num = self.attr["router_start_id"]
+        nic_num = self.attr["host_start_id"]
         subnet_num = _params["pentagon:subnet"]
         # code is so messed up for using a global variable for params
         for r in xrange(5):
@@ -832,6 +824,7 @@ class topoFishLite(Topo):
         _params["fishlite:hosts_per_router"] = int(_params["fishlite:hosts_per_router"])
         _params["fishlite:routers_per_subnet"] = int(_params["fishlite:routers_per_subnet"])
         _params["fishlite:subnet_degree"] = int(_params["fishlite:subnet_degree"])
+        # it sucks to have to do the following, but the original design doesnt support hierarchical topology
         sub_topo_name = _params["fishlite:subnet_topo"]
         sub_topo_key = sub_topo_name + ":" + "hosts_per_router"
         _params[sub_topo_key] = _params["fishlite:hosts_per_router"]
@@ -841,6 +834,10 @@ class topoFishLite(Topo):
         self.subnet_topo = getattr(self.subnet_topo, topo_cls_name)
     
     def setEndPoint(self, endPoint):
+        """
+        overwrite the setEndPoint function to save a instance of endpoint
+        to pass to subnets later 
+        """
         Topo.setEndPoint(self, endPoint)
         self.end_point = endPoint
     
@@ -857,25 +854,26 @@ class topoFishLite(Topo):
         if _params["fishlite:subnet_topo"] == "pentagon":
             # sub net are pentagons
             subnets = []
-            for i in xrange(6):  # 5 + 1 subnets 
+            for i in xrange(_params["fishlite:routers_per_subnet"] + 1):  # 5 + 1 subnets 
                 print "building pentagon " + str(i) + " router starts at " + \
                     str(router_num) + " host start at " + str(nic_num)
+                # using global var to pass args is ugly
                 _params["pentagon:subnet"] = i
-                pentagon = topoPentagon()
-                pentagon.prepParams()
-                pentagon.setEndPoint(self.end_point)
-                # pentagon.addParam("pentagon:subnet", i)
-                pentagon.addr["router_start_id"] = router_num
-                pentagon.addr["host_start_id"] = nic_num
-                pentagon.build()
-                subnets.append(pentagon)
-                router_num += 5
-                nic_num += (5*_params["fishlite:hosts_per_router"]) 
+                # pentagon = topoPentagon()
+                subnet = self.subnet_topo()
+                subnet.prepParams()
+                subnet.setEndPoint(self.end_point)
+                subnet.attr["router_start_id"] = router_num
+                subnet.attr["host_start_id"] = nic_num
+                subnet.build()
+                subnets.append(subnet)
+                router_num += _params["fishlite:routers_per_subnet"]
+                nic_num += (_params["fishlite:routers_per_subnet"] * _params["fishlite:hosts_per_router"]) 
                 
             # for subnet 0~6, connect sub[i]router[j] to sub[j]router[i]
-            port = _params["fishlite:hosts_per_router"] + 2  # only 1 extra port needed for angelfish 
-            for i in range(6):
-                for j in range(i, 5):
+            port = _params["fishlite:hosts_per_router"] + _params["fishlite:subnet_degree"]  # only 1 extra port needed for angelfish 
+            for i in range(_params["fishlite:routers_per_subnet"] + 1):
+                for j in range(i, _params["fishlite:routers_per_subnet"]):
                     src = min(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
                     dest = max(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
                     subnets[i].router(j).addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])

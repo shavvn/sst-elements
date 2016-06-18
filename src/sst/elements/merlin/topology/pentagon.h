@@ -36,8 +36,6 @@ class topo_pentagon: public Topology {
     uint32_t router_id;
     // hosts per router, all routers should have the same value of this
     uint32_t host_ports;
-    // the start router id of this group
-    uint32_t start_router_id;
     // in cases this is used to build larger graph
     uint32_t routers_per_subnet;
     // ports talking within this subnet, should be 2 by default

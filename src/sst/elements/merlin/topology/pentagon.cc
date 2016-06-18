@@ -32,13 +32,15 @@ topo_pentagon::topo_pentagon(Component* comp, Params& params) :
     }
     
     host_ports = (uint32_t)params.find<int>("pentagon:hosts_per_router", 1);
-    uint32_t num_ports = (uint32_t)params.find<int>("num_ports");
     outgoing_ports = (uint32_t)params.find<int>("pentagon:outgoing_ports", 0);
     local_ports = 2;
     routers_per_subnet = 5;
-    // set this to 3 for petersen graphs
-    // num_neighbors = (uint32_t)params.find<int>("pentagon:num_neighbors", 2);
-    start_router_id = (uint32_t)params.find<int>("pentagon:start_router_id", -1);
+    uint32_t num_ports = (uint32_t)params.find<int>("num_ports");
+    uint32_t needed_ports = host_ports + local_ports + outgoing_ports;
+    if (needed_ports > num_ports) {
+        output.fatal(CALL_INFO, -1, "Need more ports to support the given topology!\n");
+    }
+    
     std::string route_algo = params.find<std::string>("pentagon:algorithm", "minimal");
     
     if (!route_algo.compare("minimal")) {
@@ -82,13 +84,17 @@ void topo_pentagon::route(int port, int vc, internal_router_event* ev)
     
     if (tp_ev->dest.subnet != subnet) {
         // target is not this subnet
-        // only implement for angelfish_lite for now..
+        // only implement angelfish_lite for now..
         if (net_type == FISH_LITE) {
             if (tp_ev->dest.subnet == router) {
                 next_port = host_ports + local_ports;
             } else {
                 next_port = port_for_router(tp_ev->dest.subnet);
             }
+        } else if (net_type == FISHNET) {
+            output.fatal(CALL_INFO, -1, "Not supported yet \n");
+        } else {
+            output.fatal(CALL_INFO, -1, "How could you get here? \n");
         }
         
     } else if ( tp_ev->dest.router != router) {
@@ -221,27 +227,5 @@ uint32_t topo_pentagon::port_for_router(uint32_t dest_router) const
         return host_ports + 1;
     }
 }
-
-/*
-uint32_t topo_pentagon::router_to_subnet(uint32_t subnet) const
-{
-    return 0;
-}
-
-
-uint32_t topo_pentagon::port_for_subnet(uint32_t subnet) const
-{
-    return 0; 
-}
-
-
-
-
-
-uint32_t localToGlobalID(uint32_t local_num)
-{
-    return (router_id_start + (local_num%5);
-}
-*/
 
 

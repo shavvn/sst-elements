@@ -403,7 +403,6 @@ load_pentagon_topology(Component* comp, Params& params)
 static const ElementInfoParam pentagon_params[] = {
     {"pentagon:hosts_per_router", "Number of hosts connected to each router.", "1"},
     {"pentagon:outgoing_ports", "(Optional) Number of ports going out of the subnet.", "0"},
-    {"pentagon:start_router_id", "The router_id of the first router in this pentagon.", "0"},
     {"pentagon:algorithm", "Routing algorithms, only minimal for now.", "minimal"},
     {"pentagon:interconnect", "Interconnect type, fish_lite, fish_net, or none", "none"},
     {"pentagon:subnet", "Address: Subnet number", "0"},
