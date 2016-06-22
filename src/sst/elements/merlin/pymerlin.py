@@ -770,10 +770,14 @@ class topoPentagon(Topo):
             if name not in links:
                 links[name] = sst.Link(name)
             return links[name]
-        
-        router_num = self.attr["router_start_id"]
-        nic_num = self.attr["host_start_id"]
-        subnet_num = _params["pentagon:subnet"]
+        if _params["pentagon:outgoing_ports"] != 0:
+            router_num = self.attr["router_start_id"]
+            nic_num = self.attr["host_start_id"]
+            subnet_num = _params["pentagon:subnet"]
+        else:
+            router_num = 0
+            nic_num = 0
+            subnet_num = 0
         # code is so messed up for using a global variable for params
         for r in xrange(5):
             rtr = sst.Component("rtr:G%dR%d"%(subnet_num, r), "merlin.hr_router")
@@ -815,7 +819,7 @@ class topoFishLite(Topo):
         self.topoOptKeys = []
         self.subnet_topo = sys.modules[__name__]
         self.end_point = None
-        sst.setStatisticLoadLevel(0)
+
     def getName(self):
         return "Fishnet Lite"
         
