@@ -752,7 +752,10 @@ class topoPentagon(Topo):
         _params["pentagon:hosts_per_router"] = int(_params["pentagon:hosts_per_router"])
         _params["pentagon:outgoing_ports"] = int(_params["pentagon:outgoing_ports"])
         _params["num_ports"] = _params["pentagon:hosts_per_router"] + _params["pentagon:outgoing_ports"] + 2
-        
+        _params["num_peers"] = _params["pentagon:hosts_per_router"] * 5
+        if _params["pentagon:interconnect"] != "none":
+            _params["num_peers"] *= 6
+            
     def router(self, r):
         r = (r%5)
         return self.rtrs[r]

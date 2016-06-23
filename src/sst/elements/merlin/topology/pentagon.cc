@@ -50,10 +50,11 @@ topo_pentagon::topo_pentagon(Component* comp, Params& params) :
     
     std::string interconnect = params.find<std::string>("pentagon:interconnect", "none");
     
-    if (interconnect.compare("fish_lite")) {
+    if (interconnect.compare("fishlite") == 0 ) {  // returns 0 when equal.. wtf
         subnet = (uint32_t)params.find<int>("pentagon:subnet", 0);
         net_type = FISH_LITE;
-    } else if (interconnect.compare("fishnet")) {
+    } else if (interconnect.compare("fishnet") == 0) {
+        output.fatal(CALL_INFO, -1, "Fishnet Not supported yet %s \n", interconnect.c_str());
         subnet = (uint32_t)params.find<int>("pentagon:subnet", 0);
         net_type = FISHNET;
     } else {
@@ -86,10 +87,16 @@ void topo_pentagon::route(int port, int vc, internal_router_event* ev)
         // target is not this subnet
         // only implement angelfish_lite for now..
         if (net_type == FISH_LITE) {
-            if (tp_ev->dest.subnet == router) {
+            uint32_t out_rtr = 0;  // the router responsible for forwarding packet
+            if (tp_ev->dest.subnet < subnet) {
+                out_rtr = tp_ev->dest.subnet;
+            } else {
+                out_rtr = tp_ev->dest.subnet - 1; // minus 1 because the way it connects
+            }
+            if (out_rtr == router) {
                 next_port = host_ports + local_ports;
             } else {
-                next_port = port_for_router(tp_ev->dest.subnet);
+                next_port = next_port = port_for_router(out_rtr);
             }
         } else if (net_type == FISHNET) {
             output.fatal(CALL_INFO, -1, "Not supported yet \n");
