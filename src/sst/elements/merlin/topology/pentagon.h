@@ -99,6 +99,7 @@ class topo_pentagon_event : public internal_router_event {
 
 public:
     uint32_t src_subnet;
+    uint32_t is_forwarded;
     topo_pentagon::fishnetAddr dest;
     
     topo_pentagon_event() {}
@@ -114,13 +115,14 @@ public:
     {
         internal_router_event::serialize_order(ser);
         ser & src_subnet;
+        ser & is_forwarded;
         ser & dest.subnet;
         ser & dest.router;
         ser & dest.host;
     }
     
 private:
-    ImplementSerializable(SST::Merlin::topo_pentagon_event);
+    ImplementSerializable(SST::Merlin::topo_pentagon_event)
     
 };
 

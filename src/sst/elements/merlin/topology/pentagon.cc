@@ -75,7 +75,7 @@ void topo_pentagon::route(int port, int vc, internal_router_event* ev)
 {
     topo_pentagon_event *tp_ev = static_cast<topo_pentagon_event*>(ev);
     uint32_t local_ports = 2;
-    if ( (uint32_t)port > (host_ports + local_ports) ) {
+    if ( (uint32_t)port >= (host_ports + local_ports) ) {
         /* Came in from another subnet.  Increment VC */
         tp_ev->setVC(vc+1);
     }
@@ -138,22 +138,33 @@ void topo_pentagon::routeInitData(int port, internal_router_event* ev, std::vect
             /* Came in from another subnet.
              * Send to locals, and other routers in subnet
              */
+            tp_ev->is_forwarded = 0;
             for ( uint32_t p = 0; p < (host_ports + local_ports ); p++ ) {
                 outPorts.push_back((int)p);
             }
         } else if ( (uint32_t)port >= host_ports ) {
             /* Came in from another router in subnet.
              * send to hosts
-             * if this is the source subnet, send to other subnets
+             * if this is the source subnet, 
+             * forward to the other router, or send to other subnets
              */
             for ( uint32_t p = 0; p < host_ports; p++ ) {
                 outPorts.push_back((int)p);
             }
-            if (tp_ev->src_subnet = subnet) {
-                for (uint32_t p = (host_ports+local_ports); p < total_ports; p++) {
+            /* Note this should be different from dragonfly
+             * because you can forward 
+             */
+            if (tp_ev->src_subnet == subnet) {
+                for ( uint32_t p = (host_ports + local_ports); p < total_ports; p++) {
                     outPorts.push_back((int)p);
                 }
-            } 
+            }
+            if (tp_ev->is_forwarded == 0) {
+                tp_ev->is_forwarded = 1; 
+                for ( uint32_t p = host_ports; p < (host_ports + local_ports); p++) {
+                    outPorts.push_back((int)p);
+                }
+            }
         } else {
             /* Came in from a host
              * Send to all other hosts and routers in group, and all groups
@@ -178,6 +189,7 @@ internal_router_event* topo_pentagon::process_InitData_input(RtrEvent* ev)
     id_to_location(ev->request->dest, &destAddr);
     topo_pentagon_event *tp_ev = new topo_pentagon_event(destAddr);
     tp_ev->src_subnet = subnet;
+    tp_ev->is_forwarded = 0;
     tp_ev->setEncapsulatedEvent(ev);
     return tp_ev;
 }
