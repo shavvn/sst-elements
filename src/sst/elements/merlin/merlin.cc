@@ -35,6 +35,7 @@
 #include "topology/dragonfly.h"
 #include "topology/dragonfly2.h"
 #include "topology/pentagon.h"
+#include "topology/petersen.h"
 
 #include "hr_router/xbar_arb_rr.h"
 #include "hr_router/xbar_arb_lru.h"
@@ -410,6 +411,23 @@ static const ElementInfoParam pentagon_params[] = {
     {NULL, NULL, NULL}
 };
 
+
+// topo petersen
+static SubComponent*
+load_petersen_topology(Component* comp, Params& params)
+{
+    return new topo_petersen(comp, params);
+}
+
+static const ElementInfoParam petersen_params[] = {
+    {"petersen:hosts_per_router", "Number of hosts connected to each router.", "1"},
+    {"petersen:outgoing_ports", "(Optional) Number of ports going out of the subnet.", "0"},
+    {"petersen:algorithm", "Routing algorithms, only minimal for now.", "minimal"},
+    {"petersen:interconnect", "Interconnect type, fish_lite, fish_net, or none", "none"},
+    {"petersen:subnet", "Address: Subnet number", "0"},
+    {"petersen:router", "Address: router number within subnet"},
+    {NULL, NULL, NULL}
+};
 
 // Crossbar arbitration units
 
@@ -811,6 +829,14 @@ static const ElementInfoSubComponent subcomponents[] = {
       NULL,
       load_pentagon_topology,
       pentagon_params,
+      NULL,
+      "SST::Merlin::Topology"
+    },
+    { "petersen",
+      "Petersen topology object",
+      NULL,
+      load_petersen_topology,
+      petersen_params,
       NULL,
       "SST::Merlin::Topology"
     },

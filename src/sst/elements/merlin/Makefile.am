@@ -43,6 +43,8 @@ libmerlin_la_SOURCES = \
 	topology/dragonfly2.cc \
 	topology/pentagon.h \
 	topology/pentagon.cc \
+	topology/petersen.h \
+	topology/petersen.cc \
 	topology/singlerouter.h \
 	topology/singlerouter.cc \
 	hr_router/hr_router.h \
