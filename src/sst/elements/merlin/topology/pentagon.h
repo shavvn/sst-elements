@@ -29,8 +29,8 @@ class topo_pentagon_event;
 class topo_pentagon: public Topology {
     /* Assumed connectivity of each router:
      * ports [0, host_ports-1]:      Hosts
-     * ports [host_ports, host_ports+num_neighbors-1]:    Intra-group
-     * ports [host_ports+num_neighbors, total_ports]:  ports used to construct hs graph
+     * ports [host_ports, host_ports+local_ports-1]: Intra-group
+     * ports [host_ports+local_ports, total_ports]:  ports used to construct hs graph
      */    
     // global router id
     uint32_t router_id;
@@ -57,12 +57,20 @@ class topo_pentagon: public Topology {
     
     // Add this to diameter-2 graphs for AF net construction
     enum FishnetType {
-        NONE,
+        NONFISH,
         FISH_LITE,
         FISHNET
     };
     
     FishnetType net_type;
+    
+    uint32_t neighbor_table[5][2] = {
+        {1, 4},
+        {2, 0},
+        {3, 1},
+        {4, 2},
+        {0, 3},
+    };
     
 public:
     struct fishnetAddr {
@@ -91,7 +99,7 @@ public:
 private:
     void id_to_location(int id, fishnetAddr *location) const;
     uint32_t port_for_router(uint32_t dest_router) const;
-    
+    bool is_neighbor(uint32_t tgt_rtr, uint32_t this_rtr) const;
 };
 
 
@@ -122,7 +130,7 @@ public:
     }
     
 private:
-    ImplementSerializable(SST::Merlin::topo_pentagon_event)
+    ImplementSerializable(SST::Merlin::topo_pentagon_event);
     
 };
 

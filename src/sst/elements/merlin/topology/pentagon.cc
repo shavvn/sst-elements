@@ -18,8 +18,8 @@ using namespace SST::Merlin;
 
 /* Assumed connectivity of each router:
  * ports [0, host_ports-1]:      Hosts
- * ports [host_ports, host_ports+num_neighbors-1]:    Intra-group
- * ports [host_ports+num_neighbors, total_ports]:  ports used to construct hs graph
+ * ports [host_ports, host_ports+local_ports-1]:    Intra-group
+ * ports [host_ports+local_ports, total_ports]:  ports used to construct hs graph
  */ 
 
 topo_pentagon::topo_pentagon(Component* comp, Params& params) :
@@ -31,6 +31,11 @@ topo_pentagon::topo_pentagon(Component* comp, Params& params) :
         output.fatal(CALL_INFO, -1, "id must be set\n");
     }
     
+    output.init("Pentagon", 
+        params.find<uint32_t>("verboseLevel",0),
+        params.find<uint32_t>("verboseMask",-1), 
+        Output::STDOUT);
+
     host_ports = (uint32_t)params.find<int>("pentagon:hosts_per_router", 1);
     outgoing_ports = (uint32_t)params.find<int>("pentagon:outgoing_ports", 0);
     local_ports = 2;
@@ -54,13 +59,12 @@ topo_pentagon::topo_pentagon(Component* comp, Params& params) :
         subnet = (uint32_t)params.find<int>("pentagon:subnet", 0);
         net_type = FISH_LITE;
     } else if (interconnect.compare("fishnet") == 0) {
-        output.fatal(CALL_INFO, -1, "Fishnet Not supported yet %s \n", interconnect.c_str());
         subnet = (uint32_t)params.find<int>("pentagon:subnet", 0);
         net_type = FISHNET;
     } else {
         // just a pentagon
         subnet = 0; 
-        net_type = NONE;
+        net_type = NONFISH;
     }
     router = (uint32_t)params.find<int>("pentagon:router", 0);
     
@@ -75,35 +79,59 @@ topo_pentagon::~topo_pentagon()
 void topo_pentagon::route(int port, int vc, internal_router_event* ev)
 {
     topo_pentagon_event *tp_ev = static_cast<topo_pentagon_event*>(ev);
-    uint32_t local_ports = 2;
     if ( (uint32_t)port >= (host_ports + local_ports) ) {
         /* Came in from another subnet.  Increment VC */
         tp_ev->setVC(vc+1);
     }
     
     uint32_t next_port = 0;
-    
     if (tp_ev->dest.subnet != subnet) {
         // target is not this subnet
-        // only implement angelfish_lite for now..
-        if (net_type == FISH_LITE) {
-            uint32_t out_rtr = 0;  // the router responsible for forwarding packet
-            if (tp_ev->dest.subnet < subnet) {
-                out_rtr = tp_ev->dest.subnet;
-            } else {
-                out_rtr = tp_ev->dest.subnet - 1; // minus 1 because the way it connects
-            }
-            if (out_rtr == router) {
-                next_port = host_ports + local_ports;
-            } else {
-                next_port = next_port = port_for_router(out_rtr);
-            }
-        } else if (net_type == FISHNET) {
-            output.fatal(CALL_INFO, -1, "Not supported yet \n");
-        } else {
+        // either fishlite or fishnet
+        if (net_type == NONFISH) {
             output.fatal(CALL_INFO, -1, "How could you get here? \n");
-        }
-        
+        } else {
+            uint32_t mid_rtr = 0;  // the router responsible for forwarding packet
+            if (tp_ev->dest.subnet < subnet) {
+                mid_rtr = tp_ev->dest.subnet;
+            } else {
+                mid_rtr = tp_ev->dest.subnet - 1; // minus 1 because the way it connects
+            }
+            if (net_type == FISH_LITE) {
+                if (mid_rtr == router) {  // going to other subnets 
+                    next_port = host_ports + local_ports;
+                } else {  // forward
+                    next_port = port_for_router(mid_rtr);
+                }
+            } else {  // fishnet
+                if (mid_rtr == router) {  
+                    // different from fishlite, the mid_rtr neighbors have access to
+                    // the target subnet, so forward to one of its neighbors
+                    // could be from host_ports to (host_ports + local_ports -1)
+                    next_port = host_ports;
+                } else {
+                    if (is_neighbor(router, mid_rtr)) { // if router in mid_rtr 's neighbor
+                        bool find_rtr = false;
+                        for (uint32_t i = 0; i < outgoing_ports; i++) {
+                            uint32_t neighbor = neighbor_table[router][i];
+                            if (neighbor >= subnet) {
+                                neighbor += 1;
+                            }
+                            if (neighbor == tp_ev->dest.subnet) {  // going to other subnet
+                                next_port = host_ports + local_ports + i;
+                                find_rtr = true;
+                                break;
+                            }
+                        }
+                        if (!find_rtr) {
+                            output.fatal(CALL_INFO, -1, "cannot find route!\n");
+                        }
+                    } else { // forward to mid_rtr
+                        next_port = port_for_router(mid_rtr);
+                    }
+                }
+            }
+        }       
     } else if ( tp_ev->dest.router != router) {
         // not this router, forward to other routers in this subnet
         // trivial routing
@@ -120,13 +148,13 @@ void topo_pentagon::route(int port, int vc, internal_router_event* ev)
 
 internal_router_event* topo_pentagon::process_input(RtrEvent* ev)
 {
-    output.verbose(CALL_INFO, 1, 1, "Processing input...\n");
     topo_pentagon::fishnetAddr destAddr = {0, 0, 0};
     id_to_location(ev->request->dest, &destAddr);
     topo_pentagon_event *tp_ev = new topo_pentagon_event(destAddr);
     // if to implement other algorithm, need to add stuff..
     
     tp_ev->src_subnet = subnet;
+
     tp_ev->setEncapsulatedEvent(ev);
     // TODO not sure about this vn thing
     tp_ev->setVC(ev->request->vn *3);
@@ -136,10 +164,8 @@ internal_router_event* topo_pentagon::process_input(RtrEvent* ev)
 // this is to figure out what are the possible outports for a given input port
 void topo_pentagon::routeInitData(int port, internal_router_event* ev, std::vector<int> &outPorts)
 {
-    output.verbose(CALL_INFO, 1, 1, "route InitData...\n");
     topo_pentagon_event *tp_ev = static_cast<topo_pentagon_event*>(ev);
     if ( tp_ev->dest.host == (uint32_t)INIT_BROADCAST_ADDR ) {
-        uint32_t local_ports = 2;
         uint32_t total_ports = host_ports + local_ports + outgoing_ports;
         if ( (uint32_t)port >= (host_ports + local_ports ) ) {
             /* Came in from another subnet.
@@ -176,11 +202,11 @@ void topo_pentagon::routeInitData(int port, internal_router_event* ev, std::vect
             /* Came in from a host
              * Send to all other hosts and routers in group, and all groups
              */
-             for (uint32_t p = 0; p < total_ports; p++) {
-                 if (p != (uint32_t)port) {
-                     outPorts.push_back((int)p);
-                 }
-             }
+            for (uint32_t p = 0; p < total_ports; p++) {
+                if (p != (uint32_t)port) {
+                    outPorts.push_back((int)p);
+                }
+            }
         }
     } else {
         route(port, 0, ev);
@@ -191,7 +217,6 @@ void topo_pentagon::routeInitData(int port, internal_router_event* ev, std::vect
 
 internal_router_event* topo_pentagon::process_InitData_input(RtrEvent* ev)
 {
-    output.verbose(CALL_INFO, 1, 1, "Processing InitData input...\n");
     topo_pentagon::fishnetAddr destAddr;
     id_to_location(ev->request->dest, &destAddr);
     topo_pentagon_event *tp_ev = new topo_pentagon_event(destAddr);
@@ -211,7 +236,7 @@ Topology::PortState topo_pentagon::getPortState(int port) const
 std::string topo_pentagon::getPortLogicalGroup(int port) const
 {
     if ((uint32_t)port < host_ports) return "host";
-    if ((uint32_t)port >= host_ports && (uint32_t)port < (host_ports + 2)) return "group";
+    if ((uint32_t)port >= host_ports && (uint32_t)port < (host_ports + local_ports)) return "group";
     else return "global";
 }
 
@@ -245,6 +270,17 @@ uint32_t topo_pentagon::port_for_router(uint32_t dest_router) const
         // right side
         return host_ports + 1;
     }
+}
+
+// see if the target router is a neighbor of this router
+bool topo_pentagon::is_neighbor(uint32_t tgt_rtr, uint32_t this_rtr) const
+{
+    for (uint32_t i = 0; i < local_ports; i++) {
+        if (tgt_rtr == neighbor_table[this_rtr][i]) {
+            return true;
+        }
+    }
+    return false;
 }
 
 
