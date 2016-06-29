@@ -805,12 +805,10 @@ class topoPentagon(Topo):
             src = min(r, left_rtr)
             dest = max(r, left_rtr)
             rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src, dest)), "port%d"%port, _params["link_lat"])
-            print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
             port += 1
             src = min(r, right_rtr)
             dest = max(r, right_rtr)
             rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src, dest)), "port%d"%port, _params["link_lat"])
-            print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
             router_num += 1 
       
 
@@ -892,12 +890,10 @@ class topoPetersen(Topo):
             src = min(r, left_rtr)
             dest = max(r, left_rtr)
             rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src, dest)), "port%d"%port, _params["link_lat"])
-            print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
             port += 1
             src = min(r, right_rtr)
             dest = max(r, right_rtr)
             rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src, dest)), "port%d"%port, _params["link_lat"])
-            print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
             router_num += 1
         # then build a pentagram
         for r in xrange(5):
@@ -948,6 +944,7 @@ class topoFishLite(Topo):
         self.topoOptKeys = []
         self.subnet_topo = sys.modules[__name__]
         self.end_point = None
+        self.avail_subs = ["pentagon", "petersen"]
 
     def getName(self):
         return "Fishnet Lite"
@@ -984,14 +981,12 @@ class topoFishLite(Topo):
         router_num = 0
         nic_num = 0
         # only support diameter-2 subnets
-        if _params["fishlite:subnet_topo"] == "pentagon":
+        topo = _params["fishlite:subnet_topo"]
+        if any(topo in s for s in self.avail_subs):
             # sub net are pentagons
             subnets = []
-            for i in xrange(_params["fishlite:routers_per_subnet"] + 1):  # 5 + 1 subnets 
-                print "building pentagon " + str(i) + " router starts at " + \
-                    str(router_num) + " host start at " + str(nic_num)
-                # using global var to pass args is ugly
-                _params["pentagon:subnet"] = i
+            for i in xrange(_params["fishlite:routers_per_subnet"] + 1):  # 1 more subnets 
+                _params[topo+":subnet"] = i
                 # pentagon = topoPentagon()
                 subnet = self.subnet_topo()
                 subnet.prepParams()
@@ -1011,10 +1006,6 @@ class topoFishLite(Topo):
                     dest = max(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
                     subnets[i].router(j).addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])
                     subnets[j+1].router(i).addLink(getLink("link:r%dr%d"%(src, dest)), "port%d"%port, _params["link_lat"])
-                    print "connecting subnet " + str(i) + " router " + str(j) + \
-                        "(" + str(subnets[i].rtr_ids[j]) + ")" + \
-                        " to subnet " + str(j+1) + " router " + str(i) + \
-                        "(" + str(subnets[j+1].rtr_ids[i]) + ")" + "at port " + str(port)
         else:
             print "not supported for now..."
             sys.exit(1)
