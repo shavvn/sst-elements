@@ -43,13 +43,28 @@ JobParser::JobParser(Machine* machine,
     this->useYumYumSimulationKill = useYumYumSimulationKill;
     this->YumYumSimulationKillFlag = YumYumSimulationKillFlag;
     this->doDetailedNetworkSim = doDetailedNetworkSim; //NetworkSim: added doDetailedNetworkSim parameter
-    useYumYumTraceFormat = !params.find_string("useYumYumTraceFormat").empty();
-    jobTrace = params.find_string("traceName").c_str();
+    useYumYumTraceFormat = !params.find<std::string>("useYumYumTraceFormat").empty();
+    jobTrace = params.find<std::string>("traceName").c_str();
+
+    //NetworkSim: traces for completed/running jobs on ember
+    char* dir = getenv("SIMOUTPUT");
+    std::string outputDirectory;
+    if (NULL == dir) {
+        outputDirectory = "./";
+    } else {
+        outputDirectory = dir;
+    }
 
     //NetworkSim: traces for completed/running jobs on ember
     if (*(this->doDetailedNetworkSim)){
-        completedJobTrace = params.find_string("completedJobsTrace").c_str();
-        runningJobTrace = params.find_string("runningJobsTrace").c_str();
+        //initialize outputDirectory        
+        if (NULL == dir) {
+            completedJobTrace = params.find<std::string>("completedJobsTrace").c_str();
+            runningJobTrace = params.find<std::string>("runningJobsTrace").c_str();
+        } else {
+            completedJobTrace = outputDirectory + params.find<std::string>("completedJobsTrace").c_str();
+            runningJobTrace = outputDirectory + params.find<std::string>("runningJobsTrace").c_str();
+        }
     }
     //end->NetworkSim
 
@@ -504,7 +519,7 @@ double** CommParser::readCoordFile(std::string fileName, int procsNeeded)
 DParser::DParser(int numNodes, SST::Params& params)
 {
     this->numNodes = numNodes;
-    fileName = params.find_string("dMatrixFile").c_str();
+    fileName = params.find<std::string>("dMatrixFile").c_str();
     
     char* inputDir = getenv("SIMINPUT");
     if (inputDir != NULL) {

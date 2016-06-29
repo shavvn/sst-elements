@@ -19,6 +19,9 @@ libfirefly_la_SOURCES = \
 	ctrlMsgXXX.h \
 	ctrlMsgFunctors.h \
 	ctrlMsgProcessQueuesState.h \
+	heapAddrs.h \
+	ioapi.h \
+	nicTester.h \
 	mem.h \
 	latencyMod.h \
 	rangeLatMod.h \
@@ -60,6 +63,7 @@ libfirefly_la_SOURCES = \
 	funcSM/commCreate.h \
 	funcSM/commDestroy.h \
 	funcSM/init.h \
+	funcSM/makeProgress.h \
 	hades.h \
 	hades.h \
 	hades.cc \

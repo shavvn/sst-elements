@@ -10,7 +10,6 @@
 // distribution.
 
 #include "sst_config.h"
-#include "sst/core/serialization.h"
 #include "qsimComponent.h"
 
 #include <sst/core/params.h>
@@ -28,20 +27,22 @@ using namespace Qsim;
 using namespace std;
 
 namespace SST { namespace QsimComponent {
-class IPIEvent : public Event {
+class IPIEvent : public SST::Event {
 public:
   IPIEvent(int dest, uint8_t vec): dest(dest), vec(vec) {}
   int dest;
   uint8_t vec;
 
 private:
-  friend class boost::serialization::access;
   IPIEvent() {}
-  template <class A> void serialize(A &ar, const unsigned int version) {
-    ar & BOOST_SERIALIZATION_BASE_OBJECT_NVP(Event);
-    ar & BOOST_SERIALIZATION_NVP(dest);
-    ar & BOOST_SERIALIZATION_NVP(vec);
+  
+  void serialize_order(SST::Core::Serialization::serializer &ser) {
+      Event::serialize_order(ser);
+      ser & dest;
+      ser & vec;
   }
+  
+  ImplementSerializable(SST::QsimComponent::IPIEvent);     
 };
 }}
 
@@ -52,15 +53,15 @@ qsimComponent::qsimComponent(ComponentId_t id, Params &p):
   out.init("", 0, 0, Output::STDOUT);
 
   bool found;
-  stateFile = p.find_string("state", "", found);
+  stateFile = p.find<std::string>("state", "", found);
   if (!found) out.fatal(CALL_INFO, -1, "State file not provided\n");
 
-  appFile = p.find_string("app", "", found);
+  appFile = p.find<std::string>("app", "", found);
   if (!found) out.fatal(CALL_INFO, -1, "Application .tar file not provided\n");
 
-  clockFreq = p.find_string("clock", "5GHz", found);
+  clockFreq = p.find<std::string>("clock", "5GHz", found);
 
-  hwThreadId = p.find_integer("hwthread", 0, found);
+  hwThreadId = p.find<int64_t>("hwthread", 0, found);
   if (!found) hwThreadId = 0;
 
   registerAsPrimaryComponent();
@@ -256,9 +257,6 @@ int qsimComponent::magic_cb(int c, uint64_t a) {
 
   return 0;
 }
-
-BOOST_CLASS_EXPORT(SST::QsimComponent::IPIEvent);
-BOOST_CLASS_EXPORT(SST::QsimComponent::qsimComponent);
 
 static Component* create_qsimComponent(ComponentId_t id, Params &p) {
   return new qsimComponent(id, p);

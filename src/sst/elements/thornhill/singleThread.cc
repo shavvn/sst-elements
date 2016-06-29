@@ -23,23 +23,16 @@ using namespace SST::Miranda;
 using namespace SST::Thornhill;
 
 SingleThread::SingleThread( Component* owner, 
-        Params& params, std::string name )
+        Params& params )
         : DetailedCompute( owner ), m_link(NULL)
 {
-    std::stringstream linkName; 
+    std::string portName = params.find<std::string>( "portName", "detailed0" );
     
-    int id = 0;
-    linkName << "detailed" << id++;
-    while ( owner->isPortConnected( linkName.str() ) ) {
-		//printf("%s() connect port %s\n",__func__,linkName.str().c_str());
-		assert( ! m_link );
-        m_link = configureLink( linkName.str(), "0ps", 
+    if ( owner->isPortConnected( portName.c_str() ) ) {
+        m_link = configureLink( portName.c_str(), "0ps", 
             new Event::Handler<SingleThread>(
                     this,&SingleThread::eventHandler ) ); 
         assert(m_link);
-		linkName.str("");
-		linkName.clear();
-        linkName << "detailed"<< id++;
     }
 }
 
@@ -52,15 +45,14 @@ void SingleThread::eventHandler( SST::Event* ev )
 	delete entry;
 }
 
-void SingleThread::start( std::string& name, Params& params,
+void SingleThread::start( const std::deque< std::pair< std::string, SST::Params> >& generators,
                  std::function<int()> finiHandler )
 {
     MirandaReqEvent* event = new MirandaReqEvent;
 	
 	event->key = (uint64_t) new Entry( finiHandler );
 
-	event->generator = name;
-	event->params = params;
+	event->generators = generators;
 
 	m_link->send( 0, event );
 }

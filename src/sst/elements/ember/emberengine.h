@@ -51,11 +51,22 @@ public:
 	Thornhill::DetailedCompute* getDetailedCompute() {
 		return m_detailedCompute;
 	}
+	Thornhill::MemoryHeapLink* getMemHeapLink() {
+		return m_memHeapLink;
+	}
 
 private:
 	bool refillQueue() {
 		return m_generator->generate( evQueue );
 	}
+
+    std::string getComputeModelName() {
+       if ( m_detailedCompute ) {
+           return m_detailedCompute->getModelName();
+       }
+       return "";
+    }
+
 	void handleEvent(SST::Event* ev);
 	void issueNextEvent(uint64_t nanoSecDelay);
     bool completeFunctor( int retval, EmberEvent* ev ); 
@@ -89,6 +100,7 @@ private:
 
 	std::vector<SST::Params> motifParams;
 	Thornhill::DetailedCompute* m_detailedCompute;
+	Thornhill::MemoryHeapLink*  m_memHeapLink;
 
 	EmberEngine();			    		// For serialization
 	EmberEngine(const EmberEngine&);    // Do not implement
