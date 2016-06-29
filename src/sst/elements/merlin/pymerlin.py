@@ -781,7 +781,6 @@ class topoPentagon(Topo):
             router_num = 0
             nic_num = 0
             subnet_num = 0
-        # code is so messed up for using a global variable for params
         for r in xrange(5):
             rtr = sst.Component("rtr:G%dR%d"%(subnet_num, r), "merlin.hr_router")
             rtr.addParams(_params.subset(self.topoKeys, self.topoOptKeys))
@@ -815,6 +814,133 @@ class topoPentagon(Topo):
             router_num += 1 
       
 
+class topoPetersen(Topo):
+    """ Petersen Graph Class
+    A petersen graph is built as a pentagon and a pentagram 
+    whose corresponding nodes are connected 
+    A wiki could be found here: https://en.wikipedia.org/wiki/Petersen_graph
+    """
+    def __init__(self):
+        Topo.__init__(self)
+        self.topoKeys = ["debug", "num_ports", "flit_size", "link_bw", "xbar_bw", 
+                         "petersen:hosts_per_router", 
+                         "input_latency","output_latency", "input_buf_size","output_buf_size"]
+        self.topoOptKeys = ["petersen:interconnect","petersen:algorithm", "petersen:outgoing_ports", 
+                            "petersen:routers_per_subnet", "petersen:subnet", "petersen:router",]
+        self.attr = {}  # attributes for fishnet 
+        self.rtrs = []
+        self.rtr_ids = []
+        
+    def getName(self):
+        return "Petersen"
+        
+    def prepParams(self):
+        _params["topology"] = "merlin.petersen"
+        _params["debug"] = 1
+        _params["num_vns"] = 3
+        _params["petersen:hosts_per_router"] = int(_params["petersen:hosts_per_router"])
+        _params["petersen:outgoing_ports"] = int(_params["petersen:outgoing_ports"])
+        _params["num_ports"] = _params["petersen:hosts_per_router"] + _params["petersen:outgoing_ports"] + 3
+        _params["num_peers"] = _params["petersen:hosts_per_router"] * 10
+        if _params["petersen:interconnect"] != "none":
+            _params["num_peers"] *= 11
+    
+    def router(self, r):
+        r = (r%10)
+        return self.rtrs[r]
+    
+    def setRtrParams(self, rtr_id, params):
+        self.rtrs[rtr_id].addParams(params)
+    
+    def setEpParams(self, ep_id, params):
+        ep = self._getEndPoint(ep_id)
+        ep.addParams(params)
+    
+    def build(self):
+        links = dict()
+        def getLink(name):
+            if name not in links:
+                links[name] = sst.Link(name)
+            return links[name]
+        if _params["petersen:outgoing_ports"] != 0:
+            router_num = self.attr["router_start_id"]
+            nic_num = self.attr["host_start_id"]
+            subnet_num = _params["petersen:subnet"]
+        else:
+            router_num = 0
+            nic_num = 0
+            subnet_num = 0
+        # first build a pentagon
+        for r in xrange(5):
+            rtr = sst.Component("rtr:G%dR%d"%(subnet_num, r), "merlin.hr_router")
+            rtr.addParams(_params.subset(self.topoKeys, self.topoOptKeys))
+            rtr.addParam("id", router_num)
+            rtr.addParam("petersen:router", r)
+            self.rtrs.append(rtr)
+            self.rtr_ids.append(router_num) 
+            port = 0
+            for p in xrange(_params["petersen:hosts_per_router"]):
+                ep = self._getEndPoint(nic_num).build(nic_num, {})
+                if ep:
+                    link = sst.Link("link:g%dr%dh%d"%(subnet_num, r, p))
+                    link.connect(ep, (rtr, "port%d"%port, _params["link_lat"]))
+                    # print "connecting ep %d to router %d"%(nic_num, r)
+                nic_num += 1
+                port += 1 
+            left_rtr = (r + 1) % 5
+            right_rtr = (r + 4 ) % 5
+            src = min(r, left_rtr)
+            dest = max(r, left_rtr)
+            rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src, dest)), "port%d"%port, _params["link_lat"])
+            print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
+            port += 1
+            src = min(r, right_rtr)
+            dest = max(r, right_rtr)
+            rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src, dest)), "port%d"%port, _params["link_lat"])
+            print "connecting router %d %d"%(src, dest) + "to router %d port %d"%(router_num, port)
+            router_num += 1
+        # then build a pentagram
+        for r in xrange(5):
+            rtr = sst.Component("rtr:G%dR%d"%(subnet_num, r + 5), 
+                                "merlin.hr_router")
+            rtr.addParams(_params.subset(self.topoKeys, self.topoOptKeys))
+            rtr.addParam("id", router_num)
+            rtr.addParam("petersen:router", r + 5)
+            self.rtrs.append(rtr)
+            self.rtr_ids.append(router_num)
+            port = 0
+            lat = _params["link_lat"]
+            # build and connect endpoints
+            for p in xrange(_params["petersen:hosts_per_router"]):
+                ep = self._getEndPoint(nic_num).build(nic_num, {})
+                if ep:
+                    link = sst.Link("link:g%dr%dh%d"%(subnet_num, r + 5, p))
+                    link.connect(ep, (rtr, "port%d"%port, _params["link_lat"]))
+                    # print "connecting ep %d to router %d"%(nic_num, r)
+                nic_num += 1
+                port += 1 
+            left_rtr = (r + 2) % 5
+            right_rtr = (r + 3) % 5
+            src = min(r + 5, left_rtr + 5)
+            dst = max(r + 5, left_rtr + 5)
+            rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src,dst)),
+                        "port%d"%port, lat)
+            port += 1
+            src = min(r + 5, right_rtr + 5)
+            dst = max(r + 5, right_rtr + 5)
+            rtr.addLink(getLink("link:g%dr%dr%d"%(subnet_num, src,dst)),
+                        "port%d"%port, lat)
+            router_num += 1
+        # finally connect the pentagon and the pentagram
+        port = _params["petersen:hosts_per_router"] + 2
+        for r in xrange(5):
+            r_pentagon = self.rtrs[r]
+            r_pentagram = self.rtrs[r + 5]
+            link = getLink("link:g%dr%dr%d"%(subnet_num, r, (r+5)))
+            link.connect((r_pentagon, "port%d"%port, lat), 
+                         (r_pentagram, "port%d"%port, lat))
+ 
+            
 class topoFishLite(Topo):
     def __init__(self):
         Topo.__init__(self)
@@ -1070,7 +1196,7 @@ class TrafficGenEndPoint(EndPoint):
 
 
 if __name__ == "__main__":
-    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), (5,topoPentagon()), (6, topoFishLite()) ]) # 
+    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), (5,topoPentagon()), (6, topoPetersen()), (7, topoFishLite()) ]) # 
     endpoints = dict([(1,TestEndPoint()), (2, TrafficGenEndPoint()), (3, BisectionEndPoint())])
 
 
