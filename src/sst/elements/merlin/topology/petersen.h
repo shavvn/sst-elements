@@ -48,7 +48,7 @@ class topo_petersen: public Topology {
     
     RouteAlgo algorithm;
     enum FishnetType {
-        NONE,
+        NONFISH,
         FISH_LITE,
         FISHNET
     };
@@ -98,10 +98,24 @@ private:
         {0, 1, 2, 2, 2, 0, 1, 0, 0, 1}, // router 8
         {2, 0, 1, 2, 2, 1, 0, 1, 0, 0}, // router 9
     };
-
+    
+    uint32_t neighbor_table[10][3] = {
+ // port 0  1  2
+        {1, 4, 5},  // router 0
+        {2, 0, 6},  // router 1
+        {3, 1, 7},  // router 2
+        {4, 2, 8},  // router 3
+        {0, 3, 9},  // router 4
+        {7, 8, 0},  // router 5
+        {8, 9, 1},  // router 6
+        {9, 5, 2},  // router 7
+        {5, 6, 3},  // router 8
+        {6, 7, 4},  // router 9
+    };
+    
     void id_to_location(int id, fishnetAddr *location) const;
     uint32_t port_for_router(uint32_t dest_router) const;
-    
+    bool is_neighbor(uint32_t tgt_rtr, uint32_t this_rtr) const;
 };
 
 

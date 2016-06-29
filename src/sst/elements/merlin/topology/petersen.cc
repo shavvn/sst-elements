@@ -46,13 +46,12 @@ topo_petersen::topo_petersen(Component* comp, Params& params) :
         subnet = (uint32_t)params.find<int>("petersen:subnet", 0);
         net_type = FISH_LITE;
     } else if (interconnect.compare("fishnet") == 0) {
-        output.fatal(CALL_INFO, -1, "Fishnet Not supported yet %s \n", interconnect.c_str());
         subnet = (uint32_t)params.find<int>("petersen:subnet", 0);
         net_type = FISHNET;
     } else {
         // just a petersen
         subnet = 0; 
-        net_type = NONE;
+        net_type = NONFISH;
     }
     router = (uint32_t)params.find<int>("petersen:router", 0);
 }
@@ -73,28 +72,53 @@ void topo_petersen::route(int port, int vc, internal_router_event* ev)
     }
     
     uint32_t next_port = 0;
-    
     if (tp_ev->dest.subnet != subnet) {
         // target is not this subnet
         // only implement angelfish_lite for now..
-        if (net_type == FISH_LITE) {
+        if (net_type == NONFISH) {
+            output.fatal(CALL_INFO, -1, "How could you get here? \n");
+        } else {
             uint32_t mid_rtr = 0;  // the router responsible for forwarding packet
             if (tp_ev->dest.subnet < subnet) {
                 mid_rtr = tp_ev->dest.subnet;
             } else {
                 mid_rtr = tp_ev->dest.subnet - 1; // minus 1 because the way it connects
             }
-            if (mid_rtr == router) {
-                next_port = host_ports + local_ports;
-            } else {
-                next_port = next_port = port_for_router(mid_rtr);
+            if (net_type == FISH_LITE) {
+                if (mid_rtr == router) {  // going to other subnets 
+                    next_port = host_ports + local_ports;
+                } else {  // forward
+                    next_port = port_for_router(mid_rtr);
+                }
+            } else {  // fishnet
+                if (mid_rtr == router) {  
+                    // different from fishlite, the mid_rtr neighbors have access to
+                    // the target subnet, so forward to one of its neighbors
+                    // could be from host_ports to (host_ports + local_ports -1)
+                    next_port = host_ports;
+                } else {
+                    if (is_neighbor(router, mid_rtr)) { // if router in mid_rtr 's neighbor
+                        bool find_rtr = false;
+                        for (uint32_t i = 0; i < outgoing_ports; i++) {
+                            uint32_t neighbor = neighbor_table[router][i];
+                            if (neighbor >= subnet) {
+                                neighbor += 1;
+                            }
+                            if (neighbor == tp_ev->dest.subnet) {  // going to other subnet
+                                next_port = host_ports + local_ports + i;
+                                find_rtr = true;
+                                break;
+                            }
+                        }
+                        if (!find_rtr) {
+                            output.fatal(CALL_INFO, -1, "cannot find route!\n");
+                        }
+                    } else { // forward to mid_rtr
+                        next_port = port_for_router(mid_rtr);
+                    }
+                }
             }
-        } else if (net_type == FISHNET) {
-            output.fatal(CALL_INFO, -1, "Not supported yet \n");
-        } else {
-            output.fatal(CALL_INFO, -1, "How could you get here? \n");
-        }
-        
+        }       
     } else if ( tp_ev->dest.router != router) {
         // not this router, forward to other routers in this subnet
         // trivial routing
@@ -226,3 +250,16 @@ uint32_t topo_petersen::port_for_router(uint32_t dest_router) const
     // just looking up routing table
     return host_ports + routing_table[router][dest_router];
 }
+
+
+// see if the target router is a neighbor of this router
+bool topo_petersen::is_neighbor(uint32_t tgt_rtr, uint32_t this_rtr) const
+{
+    for (uint32_t i = 0; i < local_ports; i++) {
+        if (tgt_rtr == neighbor_table[this_rtr][i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
