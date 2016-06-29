@@ -945,6 +945,8 @@ class topoFishLite(Topo):
         self.subnet_topo = sys.modules[__name__]
         self.end_point = None
         self.avail_subs = ["pentagon", "petersen"]
+        self.sub_degree = [2, 3]   # degree of subnets
+        self.sub_routers = [5, 10]  # num of routers per subnet
 
     def getName(self):
         return "Fishnet Lite"
@@ -952,15 +954,15 @@ class topoFishLite(Topo):
     def prepParams(self):
         _params["fishlite:subnet_topo"] = str(_params["fishlite:subnet_topo"])
         _params["fishlite:hosts_per_router"] = int(_params["fishlite:hosts_per_router"])
-        _params["fishlite:routers_per_subnet"] = int(_params["fishlite:routers_per_subnet"])
-        _params["fishlite:subnet_degree"] = int(_params["fishlite:subnet_degree"])
         # it sucks to have to do the following, but the original design doesnt support hierarchical topology
-        sub_topo_name = _params["fishlite:subnet_topo"]
-        sub_topo_key = sub_topo_name + ":" + "hosts_per_router"
-        _params[sub_topo_key] = _params["fishlite:hosts_per_router"]
-        sub_topo_key = sub_topo_name + ":" + "outgoing_ports"
-        _params[sub_topo_key] = 1
-        topo_cls_name = "topo" + sub_topo_name.capitalize()
+        sub_topo = _params["fishlite:subnet_topo"]
+        topo_idx = self.avail_subs.index(sub_topo)
+        _params["fishlite:routers_per_subnet"] = self.sub_routers[topo_idx]
+        _params["fishlite:subnet_degree"] = self.sub_degree[topo_idx]
+        _params[sub_topo+":hosts_per_router"] = _params["fishlite:hosts_per_router"]
+        _params[sub_topo+":outgoing_ports"] = 1
+        _params[sub_topo+":interconnect"] = "fishlite"
+        topo_cls_name = "topo" + sub_topo.capitalize()
         self.subnet_topo = getattr(self.subnet_topo, topo_cls_name)
     
     def setEndPoint(self, endPoint):
