@@ -64,14 +64,6 @@ class topo_pentagon: public Topology {
     
     FishnetType net_type;
     
-    uint32_t neighbor_table[5][2] = {
-        {1, 4},
-        {2, 0},
-        {3, 1},
-        {4, 2},
-        {0, 3},
-    };
-    
 public:
     struct fishnetAddr {
         uint32_t subnet;
@@ -97,6 +89,14 @@ public:
     virtual int getEndpointID(int port);
     
 private:
+    uint32_t neighbor_table[5][2] = {
+        {1, 4},
+        {2, 0},
+        {3, 1},
+        {4, 2},
+        {0, 3},
+    };
+
     void id_to_location(int id, fishnetAddr *location) const;
     uint32_t port_for_router(uint32_t dest_router) const;
     bool is_neighbor(uint32_t tgt_rtr, uint32_t this_rtr) const;
