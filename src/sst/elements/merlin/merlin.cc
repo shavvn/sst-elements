@@ -36,6 +36,7 @@
 #include "topology/dragonfly2.h"
 #include "topology/pentagon.h"
 #include "topology/petersen.h"
+#include "topology/hsgraph.h"
 
 #include "hr_router/xbar_arb_rr.h"
 #include "hr_router/xbar_arb_lru.h"
@@ -428,6 +429,24 @@ static const ElementInfoParam petersen_params[] = {
     {"petersen:router", "Address: router number within subnet"},
     {NULL, NULL, NULL}
 };
+
+// topo Hoffman-Singleton graph 
+static SubComponent*
+load_hsgraph_topology(Component* comp, Params& params)
+{
+    return new topo_hsgraph(comp, params);
+}
+
+static const ElementInfoParam hsgraph_params[] = {
+    {"hsgraph:hosts_per_router", "Number of hosts connected to each router.", "1"},
+    {"hsgraph:outgoing_ports", "(Optional) Number of ports going out of the subnet.", "0"},
+    {"hsgraph:algorithm", "Routing algorithms, only minimal for now.", "minimal"},
+    {"hsgraph:interconnect", "Interconnect type, fish_lite, fish_net, or none", "none"},
+    {"hsgraph:subnet", "Address: Subnet number", "0"},
+    {"hsgraph:router", "Address: router number within subnet"},
+    {NULL, NULL, NULL}
+};
+
 
 // Crossbar arbitration units
 
@@ -838,6 +857,14 @@ static const ElementInfoSubComponent subcomponents[] = {
       NULL,
       load_petersen_topology,
       petersen_params,
+      NULL,
+      "SST::Merlin::Topology"
+    },
+    { "hsgraph",
+      "Hoffman-Singleton topology object",
+      NULL,
+      load_hsgraph_topology,
+      hsgraph_params,
       NULL,
       "SST::Merlin::Topology"
     },

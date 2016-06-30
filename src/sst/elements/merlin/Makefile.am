@@ -45,6 +45,8 @@ libmerlin_la_SOURCES = \
 	topology/pentagon.cc \
 	topology/petersen.h \
 	topology/petersen.cc \
+	topology/hsgraph.h \
+	topology/hsgraph.cc \
 	topology/singlerouter.h \
 	topology/singlerouter.cc \
 	hr_router/hr_router.h \
