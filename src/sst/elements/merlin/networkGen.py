@@ -15,7 +15,8 @@ import sst
 from sst.merlin import *
 
 if __name__ == "__main__":
-    topos = dict( [(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), (5,topoMesh()), (6,topoDragonFly2()), (7, topoPentagon())])
+    topos = dict( [(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), (5,topoMesh()), (6,topoDragonFly2()), 
+                   (7, topoPentagon()), (8, topoPetersen()), (9, topoFishLite())])
     endpoints = dict([(1,TestEndPoint()), (2, TrafficGenEndPoint()), (3, BisectionEndPoint())])
     statoutputs = dict([(1,"sst.statOutputConsole"), (2,"sst.statOutputCSV"), (3,"sst.statOutputTXT")]) 
 
