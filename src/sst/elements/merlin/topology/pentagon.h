@@ -89,13 +89,7 @@ public:
     virtual int getEndpointID(int port);
     
 private:
-    uint32_t neighbor_table[5][2] = {
-        {1, 4},
-        {2, 0},
-        {3, 1},
-        {4, 2},
-        {0, 3},
-    };
+    const static uint32_t neighbor_table[5][2];
 
     void id_to_location(int id, fishnetAddr *location) const;
     uint32_t port_for_router(uint32_t dest_router) const;

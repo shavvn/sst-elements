@@ -22,6 +22,13 @@ using namespace SST::Merlin;
  * ports [host_ports+local_ports, total_ports]:  ports used to construct hs graph
  */ 
 
+ const uint32_t topo_pentagon::neighbor_table[5][2] = {
+    {1, 4}, 
+    {2, 0}, 
+    {3, 1}, 
+    {4, 2},
+    {0, 3}};
+ 
 topo_pentagon::topo_pentagon(Component* comp, Params& params) :
     Topology(comp)
 {
@@ -69,7 +76,6 @@ topo_pentagon::topo_pentagon(Component* comp, Params& params) :
     router = (uint32_t)params.find<int>("pentagon:router", 0);
     
 }
-
 
 topo_pentagon::~topo_pentagon()
 {

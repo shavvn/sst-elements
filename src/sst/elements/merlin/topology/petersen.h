@@ -85,33 +85,8 @@ private:
     // port 2 connects the 2 corresponding routers in pentagon and pentagram
     // routers 0 to 4 are in pentagon the rest in pentagram
     // this is the offset to host ports 
-    uint32_t routing_table[10][10] = {
- // tgt  0  1  2  3  4  5  6  7  8  9 
-        {0, 0, 0, 1, 1, 2, 0, 2, 2, 1}, // router 0
-        {1, 0, 0, 0, 1, 1, 2, 0, 2, 2}, // router 1
-        {1, 1, 0, 0, 0, 2, 1, 2, 0, 2}, // router 2
-        {0, 1, 1, 0, 0, 2, 2, 1, 2, 0}, // router 3
-        {0, 0, 1, 1, 0, 0, 2, 2, 1, 2}, // router 4
-        {2, 2, 0, 1, 2, 0, 1, 0, 1, 0}, // router 5
-        {2, 2, 2, 0, 1, 0, 0, 1, 0, 1}, // router 6
-        {1, 2, 2, 2, 0, 1, 0, 0, 1, 0}, // router 7
-        {0, 1, 2, 2, 2, 0, 1, 0, 0, 1}, // router 8
-        {2, 0, 1, 2, 2, 1, 0, 1, 0, 0}, // router 9
-    };
-    
-    uint32_t neighbor_table[10][3] = {
- // port 0  1  2
-        {1, 4, 5},  // router 0
-        {2, 0, 6},  // router 1
-        {3, 1, 7},  // router 2
-        {4, 2, 8},  // router 3
-        {0, 3, 9},  // router 4
-        {7, 8, 0},  // router 5
-        {8, 9, 1},  // router 6
-        {9, 5, 2},  // router 7
-        {5, 6, 3},  // router 8
-        {6, 7, 4},  // router 9
-    };
+    const static uint32_t routing_table[10][10];
+    const static uint32_t neighbor_table[10][3];
     
     void id_to_location(int id, fishnetAddr *location) const;
     uint32_t port_for_router(uint32_t dest_router) const;
