@@ -222,10 +222,6 @@ elif "dragonfly2" == netTopo:
 	topoInfo = DragonFly2Info(netShape)
 	topo = topoDragonFly2()
 
-elif "pentagon" == netTopo:
-    topoInfo = PentagonInfo(netShape)
-    topo = topoPentagon()
-
 else:
 	sys.exit("how did we get here")
 
