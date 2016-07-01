@@ -201,7 +201,7 @@ void topo_hsgraph::route(int port, int vc, internal_router_event* ev)
                     // different from fishlite, the mid_rtr neighbors have access to
                     // the target subnet, so forward to one of its neighbors
                     // could be from host_ports to (host_ports + local_ports -1)
-                    next_port = host_ports;
+                    next_port = host_ports + local_ports -1;
                 } else {
                     if (is_neighbor(router, mid_rtr)) { // if router in mid_rtr 's neighbor
                         bool find_rtr = false;
