@@ -75,8 +75,8 @@ public:
     
 private:
     FILE* netlistInput;
-    const static uint32_t routing_table[50][50]; 
-    const static uint32_t neighbor_table[50][7];
+    uint32_t *routing_table
+    uint32_t *neighbor_table
     
     void id_to_location(int id, fishnetAddr *location) const;
     uint32_t port_for_router(uint32_t dest_router) const;
