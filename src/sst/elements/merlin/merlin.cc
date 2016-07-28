@@ -262,6 +262,7 @@ static const ElementInfoParam traffic_generator_params[] = {
     {"packet_size","Packet size specified in either b or B (can include SI prefix).","5"},
     {"delay_between_packets","","0"},
     {"message_rate","","1GHz"},
+    {"injection_rate", "Integer of injection rate in percentage, by default 100 (all injected)", "100"},
     {"PacketDest:pattern","Address pattern to be used (NearestNeighbor, Uniform, HotSpot, Normal, Binomial)",NULL},
     {"PacketDest:Seed", "Sets the seed of the RNG", "11" },
     {"PacketDest:RangeMax","Minumum address to send packets.","0"},

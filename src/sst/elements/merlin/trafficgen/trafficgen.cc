@@ -111,7 +111,6 @@ TrafficGen::TrafficGen(ComponentId_t cid, Params& params) :
 
     base_packet_size = packet_size.getRoundedValue();
     
-    
     // base_packet_delay = params.find_integer("delay_between_packets", 0);
     packetDelayGen = buildGenerator("PacketDelay", params);
     if ( packetDelayGen ) packetDelayGen->seed(id);
@@ -151,6 +150,9 @@ TrafficGen::Generator* TrafficGen::buildGenerator(const std::string &prefix, Par
         params.find<int>(prefix + ":RangeMax", INT_MAX));
 
     uint32_t rng_seed = params.find<uint32_t>(prefix + ":Seed", 1010101);
+    injection_rate = params.find<uint32_t>("injection_rate", 100);
+    inj_gen = new MersenneRNG();
+    inj_gen->seed(rng_seed);
 
     if ( !pattern.compare("NearestNeighbor") ) {
         std::string shape = params.find<std::string>(prefix + ":NearestNeighbor:3DSize");
@@ -211,7 +213,8 @@ TrafficGen::clock_handler(Cycle_t cycle)
         primaryComponentOKToEndSim();
         done = true;
     }
-
+    uint32_t rand_32 = inj_gen->generateNextUInt32();
+    rand_32 = rand_32 % 100;
     if ( packet_delay ) {
         --packet_delay;
     } else {
@@ -219,32 +222,36 @@ TrafficGen::clock_handler(Cycle_t cycle)
         if ( packets_sent < packets_to_send ) {
             int packet_size = getPacketSize();
             if ( link_control->spaceToSend(0,packet_size) ) {
-                int target = getPacketDest();
+                if (rand_32 < injection_rate) {
+                    int target = getPacketDest();
+                    SimpleNetwork::Request* req = new SimpleNetwork::Request();
+                    // req->givePayload(NULL);
+                    req->head = true;
+                    req->tail = true;
+                    
+                    switch ( addressMode ) {
+                    case SEQUENTIAL:
+                        req->dest = target;
+                        req->src = id;
+                        break;
+                    case FATTREE_IP:
+                        req->dest = fattree_ID_to_IP(target);
+                        req->src = fattree_ID_to_IP(id);
+                        break;
+                    }
+                    req->vn = 0;
+                    // ev->size_in_flits = packet_size;
+                    req->size_in_bits = packet_size;
 
+                    bool sent = link_control->send(req,0);
+                    assert( sent );
 
-                SimpleNetwork::Request* req = new SimpleNetwork::Request();
-                // req->givePayload(NULL);
-                req->head = true;
-                req->tail = true;
-                
-                switch ( addressMode ) {
-                case SEQUENTIAL:
-                    req->dest = target;
-                    req->src = id;
-                    break;
-                case FATTREE_IP:
-                    req->dest = fattree_ID_to_IP(target);
-                    req->src = fattree_ID_to_IP(id);
-                    break;
+                    ++packets_sent;
+
+                } else {
+                // packet_delay = getDelayNextPacket();
+                return false;
                 }
-                req->vn = 0;
-                // ev->size_in_flits = packet_size;
-                req->size_in_bits = packet_size;
-
-                bool sent = link_control->send(req,0);
-                assert( sent );
-
-                ++packets_sent;
             }
             else {
                 link_control->setNotifyOnSend(send_notify_functor);

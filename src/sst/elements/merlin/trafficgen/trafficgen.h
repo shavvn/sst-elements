@@ -276,7 +276,8 @@ private:
 
     int base_packet_delay;
     int packet_delay;
-
+    uint32_t injection_rate;
+    MersenneRNG* inj_gen;
     Generator *packetDestGen;
     Generator *packetSizeGen;
     Generator *packetDelayGen;
