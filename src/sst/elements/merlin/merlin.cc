@@ -804,6 +804,14 @@ static const ElementInfoSubComponent subcomponents[] = {
       NULL,
       "SST::Merlin::Topology"
     },
+    { "diameter2",
+      "Diameter-2 topology object",
+      NULL,
+      load_diameter2_topology,
+      diameter2_params,
+      NULL,
+      "SST::Merlin::Topology"
+    },
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };
 
