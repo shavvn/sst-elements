@@ -74,10 +74,10 @@ public:
     virtual int getEndpointID(int port);
     
 private:
-    FILE* netlistInput;
-    uint32_t *routing_table
-    uint32_t *neighbor_table
     
+    uint32_t *routing_table;
+    uint32_t *neighbor_table;
+    void parse_netlist_file(std::string file_name);
     void id_to_location(int id, fishnetAddr *location) const;
     uint32_t port_for_router(uint32_t dest_router) const;
     bool is_neighbor(uint32_t tgt_rtr, uint32_t this_rtr) const;
