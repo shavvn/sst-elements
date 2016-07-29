@@ -13,6 +13,7 @@
 #include "diameter2.h"
 
 #include <stdlib.h>
+#include <fstream>
 
 using namespace SST::Merlin;
 
@@ -52,7 +53,7 @@ topo_diameter2:: topo_diameter2(Component* comp, Params& params):
     if (total_ports > num_ports) {
         output.fatal(CALL_INFO, -1, "Need more ports to support the given topology!\n");
     }
-    std::string route_algo = params.find<std::string>("hsgraph:algorithm", "minimal");
+    std::string route_algo = params.find<std::string>("diameter2:algorithm", "minimal");
     if (!route_algo.compare("minimal")) {
         // TODO implement other algorithms later
         algorithm = MINIMAL;
@@ -65,7 +66,158 @@ topo_diameter2:: ~topo_diameter2() {
     delete(neighbor_table);
 }
 
-topo_diameter2::parse_netlist_file(std::string file_name) {
+void topo_diameter2::route(int port, int vc, internal_router_event* ev)
+{
+    topo_diameter2_event *tp_ev = static_cast<topo_diameter2_event*>(ev);
+
+    if ( (uint32_t)port >= (host_ports + local_ports) ) {
+        /* Came in from another subnet.  Increment VC */
+        tp_ev->setVC(vc+1);
+    }
+    
+    uint32_t next_port = 0;
+    if (tp_ev->dest.subnet != subnet) {
+        // target is not this subnet
+        // only implement angelfish_lite for now..
+        if (net_type == NONFISH) {
+            output.fatal(CALL_INFO, -1, "How could you get here? \n");
+        } else {
+            uint32_t mid_rtr = 0;  // the router responsible for forwarding packet
+            if (tp_ev->dest.subnet < subnet) {
+                mid_rtr = tp_ev->dest.subnet;
+            } else {
+                mid_rtr = tp_ev->dest.subnet - 1; // minus 1 because the way it connects
+            }
+            if (net_type == FISH_LITE) {
+                if (mid_rtr == router) {  // going to other subnets 
+                    next_port = host_ports + local_ports;
+                } else {  // forward
+                    next_port = port_for_router(mid_rtr);
+                }
+            } else {  // fishnet
+                if (mid_rtr == router) {  
+                    // different from fishlite, the mid_rtr neighbors have access to
+                    // the target subnet, so forward to one of its neighbors
+                    // could be from host_ports to (host_ports + local_ports -1)
+                    next_port = host_ports + local_ports -1;
+                } else {
+                    if (is_neighbor(mid_rtr)) { // if router in mid_rtr 's neighbor
+                        bool find_rtr = false;
+                        for (uint32_t i = 0; i < outgoing_ports; i++) {
+                            uint32_t neighbor = neighbor_table[i];
+                            if (neighbor >= subnet) {
+                                neighbor += 1;
+                            }
+                            if (neighbor == tp_ev->dest.subnet) {  // going to other subnet
+                                next_port = host_ports + local_ports + i;
+                                find_rtr = true;
+                                break;
+                            }
+                        }
+                        if (!find_rtr) {
+                            output.fatal(CALL_INFO, -1, "cannot find route!\n");
+                        }
+                    } else { // forward to mid_rtr
+                        next_port = port_for_router(mid_rtr);
+                    }
+                }
+            }
+        }       
+    } else if ( tp_ev->dest.router != router) {
+        // not this router, forward to other routers in this subnet
+        // trivial routing
+        next_port = port_for_router(tp_ev->dest.router);
+    } else {
+        // this router
+        next_port = tp_ev->dest.host;
+    }
+    output.verbose(CALL_INFO, 1, 1, "%u:%u, Recv: %d/%d  Setting Next Port/VC:  %u/%u\n", 
+                    subnet, router, port, vc, next_port, tp_ev->getVC());
+    tp_ev->setNextPort(next_port);
+}
+
+
+internal_router_event* topo_diameter2::process_input(RtrEvent* ev)
+{
+    topo_diameter2::fishnetAddr destAddr = {0, 0, 0};
+    id_to_location(ev->request->dest, &destAddr);
+    topo_diameter2_event *tp_ev = new topo_diameter2_event(destAddr);
+    // if to implement other algorithm, need to add stuff..
+    
+    tp_ev->src_subnet = subnet;
+    tp_ev->setEncapsulatedEvent(ev);
+    // TODO not sure about this vn thing
+    tp_ev->setVC(ev->request->vn *3);
+    return tp_ev;
+}
+
+
+// this is to figure out what are the possible outports for a given input port
+void topo_diameter2::routeInitData(int port, internal_router_event* ev, std::vector<int> &outPorts)
+{
+    topo_diameter2_event *tp_ev = static_cast<topo_diameter2_event*>(ev);
+    if ( tp_ev->dest.host == (uint32_t)INIT_BROADCAST_ADDR ) {
+        uint32_t total_ports = host_ports + local_ports + outgoing_ports;
+        if ( (uint32_t)port >= (host_ports + local_ports ) ) {
+            /* Came in from another subnet.
+             * Send to locals, and other routers in subnet
+             */
+            tp_ev->is_forwarded = false;
+            for ( uint32_t p = 0; p < (host_ports + local_ports ); p++ ) {
+                outPorts.push_back((int)p);
+            }
+        } else if ( (uint32_t)port >= host_ports ) {
+            /* Came in from another router in subnet.
+             * send to hosts
+             * if this is the source subnet, 
+             * forward to the other router, or send to other subnets
+             */
+            for ( uint32_t p = 0; p < host_ports; p++ ) {
+                outPorts.push_back((int)p);
+            }
+            /* Note this should be different from dragonfly
+             * because you can forward 
+             */
+            if (tp_ev->src_subnet == subnet) {
+                for ( uint32_t p = (host_ports + local_ports); p < total_ports; p++) {
+                    outPorts.push_back((int)p);
+                }
+            }
+            if (tp_ev->is_forwarded == false) {
+                tp_ev->is_forwarded = true; 
+                for ( uint32_t p = host_ports; p < (host_ports + local_ports); p++) {
+                    outPorts.push_back((int)p);
+                }
+            }
+        } else {
+            /* Came in from a host
+             * Send to all other hosts and routers in group, and all groups
+             */
+             for (uint32_t p = 0; p < total_ports; p++) {
+                 if (p != (uint32_t)port) {
+                     outPorts.push_back((int)p);
+                 }
+             }
+        }
+    } else {
+        route(port, 0, ev);
+        outPorts.push_back(ev->getNextPort());
+    }
+}
+
+
+internal_router_event* topo_diameter2::process_InitData_input(RtrEvent* ev)
+{
+    topo_diameter2::fishnetAddr destAddr;
+    id_to_location(ev->request->dest, &destAddr);
+    topo_diameter2_event *tp_ev = new topo_diameter2_event(destAddr);
+    tp_ev->src_subnet = subnet;
+    tp_ev->is_forwarded = false;
+    tp_ev->setEncapsulatedEvent(ev);
+    return tp_ev;
+}
+
+void topo_diameter2::parse_netlist_file(std::string file_name) {
     uint32_t num_nodes = 0;
     uint32_t num_links = 0;
     uint32_t num_edges = 0;
@@ -133,4 +285,58 @@ topo_diameter2::parse_netlist_file(std::string file_name) {
     delete(adj_table);
 }
 
+
+Topology::PortState topo_diameter2::getPortState(int port) const
+{
+    if ((uint32_t)port < host_ports) return R2N;
+    else return R2R;
+}
+
+
+std::string topo_diameter2::getPortLogicalGroup(int port) const
+{
+    if ((uint32_t)port < host_ports) return "host";
+    if ((uint32_t)port >= host_ports && (uint32_t)port < (host_ports + local_ports)) return "group";
+    else return "global";
+}
+
+
+int topo_diameter2::getEndpointID(int port)
+{
+    return (subnet* (routers_per_subnet * host_ports)) + router*host_ports + port;
+}
+
+
+void topo_diameter2::id_to_location(int id, fishnetAddr *location) const
+{
+    if (id == INIT_BROADCAST_ADDR) {
+        location->subnet = (uint32_t)INIT_BROADCAST_ADDR;
+        location->router = (uint32_t)INIT_BROADCAST_ADDR;
+        location->host = (uint32_t)INIT_BROADCAST_ADDR;
+    } else {
+        uint32_t hosts_per_subnet = host_ports * routers_per_subnet;
+        location->subnet = id / hosts_per_subnet;
+        location->router = (id % hosts_per_subnet) / host_ports;
+        location->host = id % host_ports;
+    }
+}
+
+
+uint32_t topo_diameter2::port_for_router(uint32_t dest_router) const 
+{
+    // just looking up routing table
+    return host_ports + routing_table[dest_router];
+}
+
+
+// see if the target router is a neighbor of this router
+bool topo_diameter2::is_neighbor(uint32_t tgt_rtr) const
+{
+    for (uint32_t i = 0; i < local_ports; i++) {
+        if (tgt_rtr == neighbor_table[i]) {
+            return true;
+        }
+    }
+    return false;
+}
 

@@ -80,7 +80,7 @@ private:
     void parse_netlist_file(std::string file_name);
     void id_to_location(int id, fishnetAddr *location) const;
     uint32_t port_for_router(uint32_t dest_router) const;
-    bool is_neighbor(uint32_t tgt_rtr, uint32_t this_rtr) const;
+    bool is_neighbor(uint32_t tgt_rtr) const;
 };
 
 
