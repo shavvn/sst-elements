@@ -230,6 +230,7 @@ void topo_diameter2::parse_netlist_file(std::string file_name) {
         uint32_t line_index = 0;
         if (line_num == 0) {
             sscanf(line.c_str(), "%u %u", &num_nodes, &num_links);
+            routers_per_subnet = num_nodes;
             num_edges = num_links * 2 / num_nodes;
             adj_table = new uint32_t*[num_nodes];
             for (int i = 0; i < num_nodes; i++) {

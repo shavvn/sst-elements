@@ -30,6 +30,7 @@ class topo_diameter2: public Topology {
     uint32_t local_ports;
     uint32_t outgoing_ports;
     uint32_t routers_per_subnet;
+    // addr of subnet number and router number within the subnet
     uint32_t subnet;
     uint32_t router;
     
