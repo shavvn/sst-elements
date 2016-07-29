@@ -733,8 +733,112 @@ class topoDragonFly2(Topo):
                 router_num = router_num +1
 
 
-
-
+class topoDiameter2(Topo):
+    def __init__(self, params={}):
+        Topo.__init__(self)
+        self.topoKeys = ["debug", "num_ports", "flit_size", "link_bw", "xbar_bw", 
+                         "diameter2:hosts_per_router", "diameter2:file", "input_latency", 
+                         "output_latency", "input_buf_size","output_buf_size"]
+        self.topoOptKeys = ["diameter2:interconnect","diameter2:algorithm", 
+                            "diameter2:subnet", "diameter2:router",]
+        self.router_start_id = 0
+        self.host_start_id = 0
+        self.adj_table = []
+        self.local_ports = 0
+        self.routers_per_net = 0
+        self.rtrs = []
+        self.rtr_ids = []
+        
+    def getName(self):
+        return "Diameter2"
+        
+    def _parse_adj_file(self, file_name):
+        with open(file_name, "r") as fp:
+            first_line = next(fp)
+            num_nodes, num_links = first_line.rstrip().split(" ")
+            num_nodes = int(num_nodes)
+            num_links = int(num_links)
+            self.routers_per_net = num_nodes
+            self.local_ports = num_links * 2 / num_nodes
+            for line in fp:
+                nums = line.rstrip().split(" ")
+                nodes = []
+                for node in nums:
+                    node = int(node)
+                    nodes.append(node)
+                self.adj_table.append(nodes)
+            for row in self.adj_table:
+                print row
+            fp.close()
+                
+    def prepParams(self):
+        _params["topology"] = "merlin.diameter2"
+        _params["debug"] = 1
+        _params["num_vns"] = 2
+        _params["diameter2:hosts_per_router"] = int(_params["diameter2:hosts_per_router"])
+        self._parse_adj_file(_params["diameter2:file"])
+        ports = self.local_ports + _params["diameter2:hosts_per_router"]
+        peers = _params["diameter2:hosts_per_router"] * self.routers_per_net
+        if _params["diameter2:interconnect"] == "fishnet":
+            ports += self.local_ports
+            peers *= self.routers_per_net
+        elif _params["diameter2:interconnect"] == "fishlite":
+            ports += 1
+            peers *= self.routers_per_net
+        else:
+            pass
+        _params["num_ports"] = ports
+        _params["num_peers"] = peers 
+        
+    def router(self, r):
+        r = (r%self.routers_per_net)
+        return self.rtrs[r]
+        
+    def neighbors(self, r):
+        return self.adj_table[r]
+        
+    def build(self):
+        links = dict()
+        def getLink(name):
+            if name not in links:
+                links[name] = sst.Link(name)
+            return links[name]
+        # router_num is the absolute number i.e. router_id 
+        if _params["diameter2:interconnect"] == "none":
+            router_num = 0
+            nic_num = 0
+            subnet_num = 0
+        else:
+            router_num = self.router_start_id
+            nic_num = self.host_start_id
+            subnet_num = _params["diameter2:subnet"]
+        lat = _params["link_lat"]
+        for r in xrange(self.routers_per_net):
+            rtr = sst.Component("rtr:G%dR%d"%(subnet_num, r), 
+                                "merlin.hr_router")
+            rtr.addParams(_params)
+            rtr.addParam("id", router_num)
+            rtr.addParam("hsgraph:router", r)
+            self.rtrs.append(rtr)
+            self.rtr_ids.append(router_num)
+            router_num += 1
+            port = 0
+            for p in xrange(_params["diameter2:hosts_per_router"]):
+                ep = self._getEndPoint(nic_num).build(nic_num, {}) 
+                link = sst.Link("link:g%dr%dh%d"%(subnet_num, r, p))
+                link.connect(ep, (rtr, "port%d"%port, lat))
+            nic_num += 1
+            port += 1
+        # then connect routers within this subnet
+        for r in xrange(self.routers_per_net):
+            port = _params["diameter2:hosts_per_router"]
+            for n in self.adj_table[r]:
+                src = min(r, n)
+                dst = max(r, n)
+                link = getLink("link:g%dr%dr%d"%(subnet_num, src, dst))
+                self.rtrs[r].addLink(link, "port%d"%port, lat)
+                port += 1
+            
 ############################################################################
 
 class EndPoint:
@@ -911,7 +1015,8 @@ class TrafficGenEndPoint(EndPoint):
 
 
 if __name__ == "__main__":
-    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple())])
+    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), 
+                  (5, topoDragonFly2()), (6, topoDiameter2())])
     endpoints = dict([(1,TestEndPoint()), (2, TrafficGenEndPoint()), (3, BisectionEndPoint())])
 
 
