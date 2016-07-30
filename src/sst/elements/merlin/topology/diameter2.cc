@@ -25,12 +25,11 @@ topo_diameter2:: topo_diameter2(Component* comp, Params& params):
         output.fatal(CALL_INFO, -1, "id must be set\n");
     }
     std::string netlist_name = params.find<std::string>("diameter2:file", "MMS.5.adj.txt");
+    // this has to be set before parse_netlist_file
+    // so that it knows which line of routing_table to keep
+    router = params.find<uint32_t>("diameter2:router", 0);
     parse_netlist_file(netlist_name);
-    
     host_ports = params.find<uint32_t>("diameter2:hosts_per_router", 1);
-    // outgoing_ports = params.find<uint32_t>("diameter2:outgoing_ports", 0);
-    local_ports = sizeof(neighbor_table) / sizeof(*neighbor_table);
-    router = (uint32_t)params.find<int>("diameter2:router", 0);
     std::string interconnect = params.find<std::string>("diameter2:interconnect", "none");
     if (interconnect.compare("fishlite") == 0 ) {  
         // fishlite interconnect, requiring 1 extra port
@@ -58,7 +57,6 @@ topo_diameter2:: topo_diameter2(Component* comp, Params& params):
         // TODO implement other algorithms later
         algorithm = MINIMAL;
     }
-    
 }
 
 topo_diameter2:: ~topo_diameter2() {
@@ -232,6 +230,7 @@ void topo_diameter2::parse_netlist_file(std::string file_name) {
             sscanf(line.c_str(), "%u %u", &num_nodes, &num_links);
             routers_per_subnet = num_nodes;
             num_edges = num_links * 2 / num_nodes;
+            local_ports = num_edges;
             adj_table = new uint32_t*[num_nodes];
             for (int i = 0; i < num_nodes; i++) {
                 adj_table[i] = new uint32_t[num_edges];
@@ -248,24 +247,23 @@ void topo_diameter2::parse_netlist_file(std::string file_name) {
         line_num += 1;
     }
     
-    uint32_t this_node = 0;
     routing_table = new uint32_t[num_nodes];
     for (int i = 0; i < num_nodes; i++) {
         routing_table[i] = UINT32_MAX;
     }
     // first level routing
     for (int i = 0; i < num_edges; i++) {
-        uint32_t neighbor = adj_table[this_node][i];
+        uint32_t neighbor = adj_table[router][i];
         routing_table[neighbor] = i;
     }
     // second level routing
     // for those non-complete moore graphs, if the routing table
     // entry is set then pass
     for (int i = 0; i < num_edges; i++) {
-        uint32_t neighbor = adj_table[this_node][i];
+        uint32_t neighbor = adj_table[router][i];
         for (int j = 0; j < num_edges; j++) {
             uint32_t neighbors_neighbor = adj_table[neighbor][j];
-            if (neighbors_neighbor == this_node) {
+            if (neighbors_neighbor == router) {
                 continue;
             } 
             if (routing_table[neighbors_neighbor] == UINT32_MAX) {
@@ -276,7 +274,7 @@ void topo_diameter2::parse_netlist_file(std::string file_name) {
     
     neighbor_table = new uint32_t[num_edges];
     for (int i = 0; i < num_edges; i++) {
-        neighbor_table[i] = adj_table[this_node][i];
+        neighbor_table[i] = adj_table[router][i];
     }
     // clean up adjecent table since we have routing table
     // and neighbor table now

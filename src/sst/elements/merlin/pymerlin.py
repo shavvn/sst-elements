@@ -767,8 +767,6 @@ class topoDiameter2(Topo):
                     node = int(node)
                     nodes.append(node)
                 self.adj_table.append(nodes)
-            for row in self.adj_table:
-                print row
             fp.close()
                 
     def prepParams(self):
@@ -818,7 +816,7 @@ class topoDiameter2(Topo):
                                 "merlin.hr_router")
             rtr.addParams(_params)
             rtr.addParam("id", router_num)
-            rtr.addParam("hsgraph:router", r)
+            rtr.addParam("diameter2:router", r)
             self.rtrs.append(rtr)
             self.rtr_ids.append(router_num)
             router_num += 1
