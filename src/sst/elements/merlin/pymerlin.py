@@ -734,13 +734,14 @@ class topoDragonFly2(Topo):
 
 
 class topoDiameter2(Topo):
-    def __init__(self, params={}):
+    def __init__(self):
         Topo.__init__(self)
-        self.topoKeys = ["debug", "num_ports", "flit_size", "link_bw", "xbar_bw", 
-                         "diameter2:hosts_per_router", "diameter2:file", "input_latency", 
-                         "output_latency", "input_buf_size","output_buf_size"]
+        self.topoKeys = ["debug", "num_ports", "flit_size", "link_bw", "xbar_bw",
+                         "input_latency", "output_latency", "input_buf_size","output_buf_size",
+                         "diameter2:hosts_per_router", "diameter2:file", "diameter2:router"]
+                         
         self.topoOptKeys = ["diameter2:interconnect","diameter2:algorithm", 
-                            "diameter2:subnet", "diameter2:router",]
+                            "diameter2:subnet",]
         self.router_start_id = 0
         self.host_start_id = 0
         self.adj_table = []
@@ -779,10 +780,10 @@ class topoDiameter2(Topo):
         peers = _params["diameter2:hosts_per_router"] * self.routers_per_net
         if _params["diameter2:interconnect"] == "fishnet":
             ports += self.local_ports
-            peers *= self.routers_per_net
+            peers *= (self.routers_per_net + 1)
         elif _params["diameter2:interconnect"] == "fishlite":
             ports += 1
-            peers *= self.routers_per_net
+            peers *= (self.routers_per_net + 1)
         else:
             pass
         _params["num_ports"] = ports
@@ -825,8 +826,8 @@ class topoDiameter2(Topo):
                 ep = self._getEndPoint(nic_num).build(nic_num, {}) 
                 link = sst.Link("link:g%dr%dh%d"%(subnet_num, r, p))
                 link.connect(ep, (rtr, "port%d"%port, lat))
-            nic_num += 1
-            port += 1
+                nic_num += 1
+                port += 1
         # then connect routers within this subnet
         for r in xrange(self.routers_per_net):
             port = _params["diameter2:hosts_per_router"]
@@ -836,6 +837,75 @@ class topoDiameter2(Topo):
                 link = getLink("link:g%dr%dr%d"%(subnet_num, src, dst))
                 self.rtrs[r].addLink(link, "port%d"%port, lat)
                 port += 1
+                
+                
+class topoFishlite(Topo):
+    def __init__(self):
+        Topo.__init__(self)
+        self.topoKeys = [ "debug", "num_ports", "flit_size", "link_bw", "xbar_bw",
+                          "input_latency", "output_latency", "input_buf_size","output_buf_size",
+                          "fishlite:hosts_per_router", "fishlite:file"]
+        self.topoOptKeys = ["fishlite:algorithm"]
+        self.end_point = None
+        self.local_ports = 0
+        self.routers_per_net = 0
+    
+    def getName(self):
+        return "Fishnet Lite"
+        
+    def _parse_adj_file(self, file_name):
+        with open(file_name, "r") as fp:
+            first_line = next(fp)
+            num_nodes, num_links = first_line.rstrip().split(" ")
+            num_nodes = int(num_nodes)
+            num_links = int(num_links)
+            self.routers_per_net = num_nodes
+            self.local_ports = num_links * 2 / num_nodes
+            fp.close()
+    
+    def setEndPoint(self, endPoint):
+        """
+        overwrite the setEndPoint function to save a instance of endpoint
+        to pass to subnets later 
+        """
+        Topo.setEndPoint(self, endPoint)
+        self.end_point = endPoint
+    
+    def prepParams(self): 
+        self._parse_adj_file(_params["fishlite:file"])
+        _params["diameter2:file"] = _params["fishlite:file"]
+        _params["fishlite:hosts_per_router"] = int(_params["fishlite:hosts_per_router"])
+        _params["diameter2:hosts_per_router"] = _params["fishlite:hosts_per_router"]
+        _params["diameter2:interconnect"] = "fishlite"
+        
+    def build(self):
+        router_num = 0
+        nic_num = 0
+        # only support diameter 2 subnets
+        subnets = []
+        for i in xrange(self.routers_per_net + 1):  # 1 more subnets 
+            _params["diameter2:subnet"] = i
+            subnet = topoDiameter2()
+            subnet.prepParams()
+            subnet.setEndPoint(self.end_point)
+            subnet.router_start_id = router_num
+            subnet.host_start_id = nic_num
+            subnet.build()
+            subnets.append(subnet)
+            router_num += self.routers_per_net
+            nic_num += (self.routers_per_net * _params["fishlite:hosts_per_router"]) 
+            
+        # for subnet 0~6, connect sub[i]router[j] to sub[j]router[i]
+        # only 1 extra port needed for angelfish lite
+        port = _params["fishlite:hosts_per_router"] + self.local_ports   
+        for i in range(self.routers_per_net + 1):
+            for j in range(i, self.routers_per_net):
+                src = min(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
+                dest = max(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
+                link = sst.Link("link:r%dr%d"%(src, dest))
+                subnets[i].router(j).addLink(link, "port%d"%port, _params["link_lat"])
+                subnets[j+1].router(i).addLink(link, "port%d"%port, _params["link_lat"])
+    
             
 ############################################################################
 
@@ -1014,7 +1084,7 @@ class TrafficGenEndPoint(EndPoint):
 
 if __name__ == "__main__":
     topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), 
-                  (5, topoDragonFly2()), (6, topoDiameter2())])
+                  (5, topoDragonFly2()), (6, topoDiameter2()), (7, topoFishlite())])
     endpoints = dict([(1,TestEndPoint()), (2, TrafficGenEndPoint()), (3, BisectionEndPoint())])
 
 
