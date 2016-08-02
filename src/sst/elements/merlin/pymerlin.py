@@ -905,6 +905,88 @@ class topoFishlite(Topo):
                 link = sst.Link("link:r%dr%d"%(src, dest))
                 subnets[i].router(j).addLink(link, "port%d"%port, _params["link_lat"])
                 subnets[j+1].router(i).addLink(link, "port%d"%port, _params["link_lat"])
+
+                
+class topoFishnet(Topo):
+    def __init__(self):
+        Topo.__init__(self)
+        self.topoKeys = [ "debug", "num_ports", "flit_size", "link_bw", "xbar_bw",
+                          "input_latency", "output_latency", "input_buf_size","output_buf_size",
+                          "fishnet:hosts_per_router", "fishnet:file"]
+        self.topoOptKeys = ["fishnet:algorithm"]
+        self.end_point = None
+        self.local_ports = 0
+        self.routers_per_net = 0
+        
+    def getName(self):
+        return "Fishnet"
+        
+    def _parse_adj_file(self, file_name):
+        with open(file_name, "r") as fp:
+            first_line = next(fp)
+            num_nodes, num_links = first_line.rstrip().split(" ")
+            num_nodes = int(num_nodes)
+            num_links = int(num_links)
+            self.routers_per_net = num_nodes
+            self.local_ports = num_links * 2 / num_nodes
+            fp.close()
+    
+    def setEndPoint(self, endPoint):
+        """
+        overwrite the setEndPoint function to save a instance of endpoint
+        to pass to subnets later 
+        """
+        Topo.setEndPoint(self, endPoint)
+        self.end_point = endPoint
+    
+    def prepParams(self): 
+        self._parse_adj_file(_params["fishnet:file"])
+        _params["diameter2:file"] = _params["fishnet:file"]
+        _params["fishnet:hosts_per_router"] = int(_params["fishnet:hosts_per_router"])
+        _params["diameter2:hosts_per_router"] = _params["fishnet:hosts_per_router"]
+        _params["diameter2:interconnect"] = "fishnet"
+        
+    def build(self):
+        router_num = 0
+        nic_num = 0
+        subnets = []
+        for i in xrange(self.routers_per_net + 1):
+            _params["diameter2:subnet"] = i
+            subnet = topoDiameter2()
+            subnet.prepParams()
+            subnet.setEndPoint(self.end_point)
+            subnet.router_start_id = router_num
+            subnet.host_start_id = nic_num
+            subnet.build()
+            subnets.append(subnet)
+            router_num += self.routers_per_net
+            nic_num += (self.routers_per_net * \
+                        _params["fishnet:hosts_per_router"])
+                        
+        # connect sub[i]router[j] to sub[j]router[i]
+        # different from fishlite, this connect all the neighbors
+        # of the target router
+        lat = _params["link_lat"]
+        for i in xrange(self.routers_per_net + 1):
+            for j in xrange(i, self.routers_per_net):
+                # neighbors should return local ids
+                src_neighbors = subnets[i].neighbors(j)
+                dst_neighbors = subnets[j+1].neighbors(i)
+                assert len(src_neighbors) == len(dst_neighbors)
+                port = _params["fishnet:hosts_per_router"] + self.local_ports
+                for k in xrange(len(src_neighbors)):
+                    # connecting corresponding neighbors
+                    src = src_neighbors[k]
+                    dst = dst_neighbors[k]
+                    # the port number is determined by its position in neighbor
+                    # table so the 2 different ports may have different numbers
+                    src_port = subnets[i].neighbors(src).index(j) + port
+                    dst_port = subnets[j+1].neighbors(dst).index(i) + port
+                    link = sst.Link("link:g%dr%dg%dr%dp%d"%(i,j,j+1,i,k))
+                    subnets[i].router(src).addLink(
+                        link, "port%d"%src_port, lat)
+                    subnets[j+1].router(dst).addLink(
+                        link, "port%d"%dst_port, lat)
     
             
 ############################################################################
@@ -1084,7 +1166,7 @@ class TrafficGenEndPoint(EndPoint):
 
 if __name__ == "__main__":
     topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), 
-                  (5, topoDragonFly2()), (6, topoDiameter2()), (7, topoFishlite())])
+                  (5, topoDragonFly2()), (6, topoDiameter2()), (7, topoFishlite()), (8, topoFishnet())])
     endpoints = dict([(1,TestEndPoint()), (2, TrafficGenEndPoint()), (3, BisectionEndPoint())])
 
 
