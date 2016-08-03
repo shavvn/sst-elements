@@ -151,8 +151,10 @@ TrafficGen::Generator* TrafficGen::buildGenerator(const std::string &prefix, Par
 
     uint32_t rng_seed = params.find<uint32_t>(prefix + ":Seed", 1010101);
     injection_rate = params.find<uint32_t>("injection_rate", 100);
-    inj_gen = new MersenneRNG();
-    inj_gen->seed(rng_seed);
+    if (prefix.compare("PacketDest") == 0) {
+        inj_gen = new MersenneRNG();
+        inj_gen->seed(rng_seed);
+    }
 
     if ( !pattern.compare("NearestNeighbor") ) {
         std::string shape = params.find<std::string>(prefix + ":NearestNeighbor:3DSize");
