@@ -34,6 +34,7 @@
 #include "topology/fattree.h"
 #include "topology/dragonfly.h"
 #include "topology/dragonfly2.h"
+#include "topology/diameter2.h"
 
 #include "hr_router/xbar_arb_rr.h"
 #include "hr_router/xbar_arb_lru.h"
@@ -392,7 +393,22 @@ static const ElementInfoParam dragonfly2_params[] = {
     {NULL,NULL,NULL}
 };
 
+// topo diameter2 graphs
+static SubComponent*
+load_diameter2_topology(Component* comp, Params& params)
+{
+    return new topo_diameter2(comp, params);
+}
 
+static const ElementInfoParam diameter2_params[] = {
+    {"diameter2:file", "Adjacent list file, must be diameter - 2 graph."},
+    {"diameter2:hosts_per_router", "Number of hosts connected to each router."},
+    {"diameter2:interconnect", "Interconnect of diameter2 graphs [none (default) | fishlite | fishnet]"},
+    {"diameter2:subnet", "subnet number within a fishlite/fishnet graph, otherwise always 0", "0"},
+    {"diameter2:router", "router number within a subnet"},
+    {"diameter2:algorithm", "Routing algorithm to use [minmal (default)]", "minimal"},
+    {NULL, NULL, NULL}
+};
 // Crossbar arbitration units
 
 // round_robin
@@ -786,6 +802,14 @@ static const ElementInfoSubComponent subcomponents[] = {
       NULL,
       load_dragonfly2_topology,
       dragonfly2_params,
+      NULL,
+      "SST::Merlin::Topology"
+    },
+    { "diameter2",
+      "Diameter-2 topology object",
+      NULL,
+      load_diameter2_topology,
+      diameter2_params,
       NULL,
       "SST::Merlin::Topology"
     },

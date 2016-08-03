@@ -733,8 +733,262 @@ class topoDragonFly2(Topo):
                 router_num = router_num +1
 
 
+class topoDiameter2(Topo):
+    def __init__(self):
+        Topo.__init__(self)
+        self.topoKeys = ["debug", "num_ports", "flit_size", "link_bw", "xbar_bw",
+                         "input_latency", "output_latency", "input_buf_size","output_buf_size",
+                         "diameter2:hosts_per_router", "diameter2:file", "diameter2:router"]
+                         
+        self.topoOptKeys = ["diameter2:interconnect","diameter2:algorithm", 
+                            "diameter2:subnet",]
+        self.router_start_id = 0
+        self.host_start_id = 0
+        self.adj_table = []
+        self.local_ports = 0
+        self.routers_per_net = 0
+        self.rtrs = []
+        self.rtr_ids = []
+        
+    def getName(self):
+        return "Diameter2"
+        
+    def _parse_adj_file(self, file_name):
+        with open(file_name, "r") as fp:
+            first_line = next(fp)
+            num_nodes, num_links = first_line.rstrip().split(" ")
+            num_nodes = int(num_nodes)
+            num_links = int(num_links)
+            self.routers_per_net = num_nodes
+            self.local_ports = num_links * 2 / num_nodes
+            for line in fp:
+                nums = line.rstrip().split(" ")
+                nodes = []
+                for node in nums:
+                    node = int(node)
+                    nodes.append(node)
+                self.adj_table.append(nodes)
+            fp.close()
+                
+    def prepParams(self):
+        _params["topology"] = "merlin.diameter2"
+        _params["debug"] = 1
+        _params["num_vns"] = 2
+        _params["diameter2:hosts_per_router"] = int(_params["diameter2:hosts_per_router"])
+        self._parse_adj_file(_params["diameter2:file"])
+        ports = self.local_ports + _params["diameter2:hosts_per_router"]
+        peers = _params["diameter2:hosts_per_router"] * self.routers_per_net
+        if _params["diameter2:interconnect"] == "fishnet":
+            ports += self.local_ports
+            peers *= (self.routers_per_net + 1)
+        elif _params["diameter2:interconnect"] == "fishlite":
+            ports += 1
+            peers *= (self.routers_per_net + 1)
+        else:
+            pass
+        _params["num_ports"] = ports
+        _params["num_peers"] = peers 
+        
+    def router(self, r):
+        r = (r%self.routers_per_net)
+        return self.rtrs[r]
+        
+    def neighbors(self, r):
+        return self.adj_table[r]
+        
+    def build(self):
+        links = dict()
+        def getLink(name):
+            if name not in links:
+                links[name] = sst.Link(name)
+            return links[name]
+        # router_num is the absolute number i.e. router_id 
+        if _params["diameter2:interconnect"] == "none":
+            router_num = 0
+            nic_num = 0
+            subnet_num = 0
+        else:
+            router_num = self.router_start_id
+            nic_num = self.host_start_id
+            subnet_num = _params["diameter2:subnet"]
+        lat = _params["link_lat"]
+        for r in xrange(self.routers_per_net):
+            rtr = sst.Component("rtr:G%dR%d"%(subnet_num, r), 
+                                "merlin.hr_router")
+            rtr.addParams(_params)
+            rtr.addParam("id", router_num)
+            rtr.addParam("diameter2:router", r)
+            self.rtrs.append(rtr)
+            self.rtr_ids.append(router_num)
+            router_num += 1
+            port = 0
+            for p in xrange(_params["diameter2:hosts_per_router"]):
+                ep = self._getEndPoint(nic_num).build(nic_num, {}) 
+                link = sst.Link("link:g%dr%dh%d"%(subnet_num, r, p))
+                link.connect(ep, (rtr, "port%d"%port, lat))
+                nic_num += 1
+                port += 1
+        # then connect routers within this subnet
+        for r in xrange(self.routers_per_net):
+            port = _params["diameter2:hosts_per_router"]
+            for n in self.adj_table[r]:
+                src = min(r, n)
+                dst = max(r, n)
+                link = getLink("link:g%dr%dr%d"%(subnet_num, src, dst))
+                self.rtrs[r].addLink(link, "port%d"%port, lat)
+                port += 1
+                
+                
+class topoFishlite(Topo):
+    def __init__(self):
+        Topo.__init__(self)
+        self.topoKeys = [ "debug", "num_ports", "flit_size", "link_bw", "xbar_bw",
+                          "input_latency", "output_latency", "input_buf_size","output_buf_size",
+                          "fishlite:hosts_per_router", "fishlite:file"]
+        self.topoOptKeys = ["fishlite:algorithm"]
+        self.end_point = None
+        self.local_ports = 0
+        self.routers_per_net = 0
+    
+    def getName(self):
+        return "Fishnet Lite"
+        
+    def _parse_adj_file(self, file_name):
+        with open(file_name, "r") as fp:
+            first_line = next(fp)
+            num_nodes, num_links = first_line.rstrip().split(" ")
+            num_nodes = int(num_nodes)
+            num_links = int(num_links)
+            self.routers_per_net = num_nodes
+            self.local_ports = num_links * 2 / num_nodes
+            fp.close()
+    
+    def setEndPoint(self, endPoint):
+        """
+        overwrite the setEndPoint function to save a instance of endpoint
+        to pass to subnets later 
+        """
+        Topo.setEndPoint(self, endPoint)
+        self.end_point = endPoint
+    
+    def prepParams(self): 
+        self._parse_adj_file(_params["fishlite:file"])
+        _params["diameter2:file"] = _params["fishlite:file"]
+        _params["fishlite:hosts_per_router"] = int(_params["fishlite:hosts_per_router"])
+        _params["diameter2:hosts_per_router"] = _params["fishlite:hosts_per_router"]
+        _params["diameter2:interconnect"] = "fishlite"
+        
+    def build(self):
+        router_num = 0
+        nic_num = 0
+        # only support diameter 2 subnets
+        subnets = []
+        for i in xrange(self.routers_per_net + 1):  # 1 more subnets 
+            _params["diameter2:subnet"] = i
+            subnet = topoDiameter2()
+            subnet.prepParams()
+            subnet.setEndPoint(self.end_point)
+            subnet.router_start_id = router_num
+            subnet.host_start_id = nic_num
+            subnet.build()
+            subnets.append(subnet)
+            router_num += self.routers_per_net
+            nic_num += (self.routers_per_net * _params["fishlite:hosts_per_router"]) 
+            
+        # for subnet 0~6, connect sub[i]router[j] to sub[j]router[i]
+        # only 1 extra port needed for angelfish lite
+        port = _params["fishlite:hosts_per_router"] + self.local_ports   
+        for i in range(self.routers_per_net + 1):
+            for j in range(i, self.routers_per_net):
+                src = min(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
+                dest = max(subnets[i].rtr_ids[j], subnets[j+1].rtr_ids[i])
+                link = sst.Link("link:r%dr%d"%(src, dest))
+                subnets[i].router(j).addLink(link, "port%d"%port, _params["link_lat"])
+                subnets[j+1].router(i).addLink(link, "port%d"%port, _params["link_lat"])
 
-
+                
+class topoFishnet(Topo):
+    def __init__(self):
+        Topo.__init__(self)
+        self.topoKeys = [ "debug", "num_ports", "flit_size", "link_bw", "xbar_bw",
+                          "input_latency", "output_latency", "input_buf_size","output_buf_size",
+                          "fishnet:hosts_per_router", "fishnet:file"]
+        self.topoOptKeys = ["fishnet:algorithm"]
+        self.end_point = None
+        self.local_ports = 0
+        self.routers_per_net = 0
+        
+    def getName(self):
+        return "Fishnet"
+        
+    def _parse_adj_file(self, file_name):
+        with open(file_name, "r") as fp:
+            first_line = next(fp)
+            num_nodes, num_links = first_line.rstrip().split(" ")
+            num_nodes = int(num_nodes)
+            num_links = int(num_links)
+            self.routers_per_net = num_nodes
+            self.local_ports = num_links * 2 / num_nodes
+            fp.close()
+    
+    def setEndPoint(self, endPoint):
+        """
+        overwrite the setEndPoint function to save a instance of endpoint
+        to pass to subnets later 
+        """
+        Topo.setEndPoint(self, endPoint)
+        self.end_point = endPoint
+    
+    def prepParams(self): 
+        self._parse_adj_file(_params["fishnet:file"])
+        _params["diameter2:file"] = _params["fishnet:file"]
+        _params["fishnet:hosts_per_router"] = int(_params["fishnet:hosts_per_router"])
+        _params["diameter2:hosts_per_router"] = _params["fishnet:hosts_per_router"]
+        _params["diameter2:interconnect"] = "fishnet"
+        
+    def build(self):
+        router_num = 0
+        nic_num = 0
+        subnets = []
+        for i in xrange(self.routers_per_net + 1):
+            _params["diameter2:subnet"] = i
+            subnet = topoDiameter2()
+            subnet.prepParams()
+            subnet.setEndPoint(self.end_point)
+            subnet.router_start_id = router_num
+            subnet.host_start_id = nic_num
+            subnet.build()
+            subnets.append(subnet)
+            router_num += self.routers_per_net
+            nic_num += (self.routers_per_net * \
+                        _params["fishnet:hosts_per_router"])
+                        
+        # connect sub[i]router[j] to sub[j]router[i]
+        # different from fishlite, this connect all the neighbors
+        # of the target router
+        lat = _params["link_lat"]
+        for i in xrange(self.routers_per_net + 1):
+            for j in xrange(i, self.routers_per_net):
+                # neighbors should return local ids
+                src_neighbors = subnets[i].neighbors(j)
+                dst_neighbors = subnets[j+1].neighbors(i)
+                assert len(src_neighbors) == len(dst_neighbors)
+                port = _params["fishnet:hosts_per_router"] + self.local_ports
+                for k in xrange(len(src_neighbors)):
+                    # connecting corresponding neighbors
+                    src = src_neighbors[k]
+                    dst = dst_neighbors[k]
+                    # the port number is determined by its position in neighbor
+                    # table so the 2 different ports may have different numbers
+                    src_port = subnets[i].neighbors(src).index(j) + port
+                    dst_port = subnets[j+1].neighbors(dst).index(i) + port
+                    link = sst.Link("link:g%dr%dg%dr%dp%d"%(i,j,j+1,i,k))
+                    subnets[i].router(src).addLink(
+                        link, "port%d"%src_port, lat)
+                    subnets[j+1].router(dst).addLink(
+                        link, "port%d"%dst_port, lat)
+    
+            
 ############################################################################
 
 class EndPoint:
@@ -911,7 +1165,8 @@ class TrafficGenEndPoint(EndPoint):
 
 
 if __name__ == "__main__":
-    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple())])
+    topos = dict([(1,topoTorus()), (2,topoFatTree()), (3,topoDragonFly()), (4,topoSimple()), 
+                  (5, topoDragonFly2()), (6, topoDiameter2()), (7, topoFishlite()), (8, topoFishnet())])
     endpoints = dict([(1,TestEndPoint()), (2, TrafficGenEndPoint()), (3, BisectionEndPoint())])
 
 
