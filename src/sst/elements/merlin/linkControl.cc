@@ -431,6 +431,7 @@ void LinkControl::handle_input(Event* ev)
             // packets, we need to add stall time
             if ( have_packets) {
                 output_port_stalls->addData(Simulation::getSimulation()->getCurrentSimCycle() - start_block);
+                //packet_latency->addData(Simulation::getSimulation()->getCurrentSimCycle() - start_block);
             }
         }
     }
