@@ -184,33 +184,31 @@ class Diameter2Info(TopoInfo):
 		self.local_ports = 0 
 		self._parse_adj_file(file_name)
 		self.numNodes = self.hosts_per_router * self.routers_per_net
-		self.params.update( {
+		self.params.update({
 			"topology": "merlin.diameter2",
-            "num_vns": 1,
-            "diameter2:file": file_name,
-            "diameter2:hosts_per_router": 1,
-            # "diameter2:router": 0,
-            # "diameter2:subnet": 0,
-            "diameter2:interconnect": "none",
-            "diameter2:algorithm": "minimal",
+			"num_vns": 1,
+			"diameter2:file": file_name,
+			"diameter2:hosts_per_router": 1,
+			"diameter2:interconnect": "none",
+			"diameter2:algorithm": "minimal"
 		})
 
 	def _parse_adj_file(self, file_name):
-        with open(file_name, "r") as fp:
-            first_line = next(fp)
-            num_nodes, num_links = first_line.rstrip().split(" ")
-            num_nodes = int(num_nodes)
-            num_links = int(num_links)
-            self.routers_per_net = num_nodes
-            self.local_ports = num_links * 2 / num_nodes
-            for line in fp:
-                nums = line.rstrip().split(" ")
-                nodes = []
-                for node in nums:
-                    node = int(node)
-                    nodes.append(node)
-                self.adj_table.append(nodes)
-            fp.close()
+		with open(file_name, "r") as fp:
+			first_line = next(fp)
+			num_nodes, num_links = first_line.rstrip().split(" ")
+			num_nodes = int(num_nodes)
+			num_links = int(num_links)
+			self.routers_per_net = num_nodes
+			self.local_ports = num_links * 2 / num_nodes
+			for line in fp:
+				nums = line.rstrip().split(" ")
+				nodes = []
+				for node in nums:
+					node = int(node)
+					nodes.append(node)
+				self.adj_table.append(nodes)
+			fp.close()
 
 	def getParams(self):
 		return self.params
