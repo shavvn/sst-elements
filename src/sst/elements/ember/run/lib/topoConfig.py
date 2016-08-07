@@ -28,7 +28,7 @@ def parseOptions(opts):
             shape = a
 
     if None == topo:
-        sys.exit('FATAL: must specify --topo=[torus|fattree|dragonfly|dragonfly2]')
+        sys.exit('FATAL: must specify --topo=[torus|fattree|dragonfly|dragonfly2|diameter2]')
     if None == shape:
         sys.exit('FATAL: must specify --shape')
 
@@ -173,6 +173,51 @@ class DragonFly2Info(TopoInfo):
 	def getNumNodes(self):
 		return self.numNodes 
 
+
+class Diameter2Info(TopoInfo):
+	def __init__(self, config):
+		self.params = {}
+		radix, hosts = [int(p) for p in config.split(':')]
+		file_name = "netlists/MMS.%d.adj.txt" % radix
+		self.hosts_per_router = hosts 
+		self.routers_per_net = 0
+		self.local_ports = 0 
+		self._parse_adj_file(file_name)
+		self.numNodes = self.hosts_per_router * self.routers_per_net
+		self.params.update( {
+			"topology": "merlin.diameter2",
+            "num_vns": 1,
+            "diameter2:file": file_name,
+            "diameter2:hosts_per_router": 1,
+            # "diameter2:router": 0,
+            # "diameter2:subnet": 0,
+            "diameter2:interconnect": "none",
+            "diameter2:algorithm": "minimal",
+		})
+
+	def _parse_adj_file(self, file_name):
+        with open(file_name, "r") as fp:
+            first_line = next(fp)
+            num_nodes, num_links = first_line.rstrip().split(" ")
+            num_nodes = int(num_nodes)
+            num_links = int(num_links)
+            self.routers_per_net = num_nodes
+            self.local_ports = num_links * 2 / num_nodes
+            for line in fp:
+                nums = line.rstrip().split(" ")
+                nodes = []
+                for node in nums:
+                    node = int(node)
+                    nodes.append(node)
+                self.adj_table.append(nodes)
+            fp.close()
+
+	def getParams(self):
+		return self.params
+
+	def getNumNodes(self):
+		return self.numNodes 
+
 def getTopoObj( topo ):
 	for case in switch(topo):
 		if case('torus'):
@@ -183,6 +228,8 @@ def getTopoObj( topo ):
 			return topoDrgonFly()
 		if case('dragonfly2'):
 			return topoDrgonFly2()
+		if case("diameter2"):
+			return topoDiamter2()
 			
 	sys.exit("how did we get here")
 
@@ -195,6 +242,8 @@ def getTopoInfo( topo, shape ):
 		if case('dragonfly'):
 			return DragonFlyInfo(shape)   
 		if case('dragonfly2'):
-			return DragonFly2Info(shape)   
+			return DragonFly2Info(shape)
+		if case("diameter2"):
+			return Diameter2Info(shape)
 			
 	sys.exit("how did we get here")
