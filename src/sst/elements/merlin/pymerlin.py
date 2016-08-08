@@ -847,6 +847,7 @@ class topoFishlite(Topo):
                           "fishlite:hosts_per_router", "fishlite:file"]
         self.topoOptKeys = ["fishlite:algorithm"]
         self.end_point = None
+        self.ep_func = None
         self.local_ports = 0
         self.routers_per_net = 0
     
@@ -871,6 +872,9 @@ class topoFishlite(Topo):
         Topo.setEndPoint(self, endPoint)
         self.end_point = endPoint
     
+    def setEndPointFunc(self, epFunc):
+        self.ep_func = epFunc
+    
     def prepParams(self): 
         self._parse_adj_file(_params["fishlite:file"])
         _params["diameter2:file"] = _params["fishlite:file"]
@@ -887,7 +891,10 @@ class topoFishlite(Topo):
             _params["diameter2:subnet"] = i
             subnet = topoDiameter2()
             subnet.prepParams()
-            subnet.setEndPoint(self.end_point)
+            if self.end_point:
+                subnet.setEndPoint(self.end_point)
+            else:
+                subnet.setEndPointFunc(self.ep_func)
             subnet.router_start_id = router_num
             subnet.host_start_id = nic_num
             subnet.build()
@@ -938,6 +945,9 @@ class topoFishnet(Topo):
         """
         Topo.setEndPoint(self, endPoint)
         self.end_point = endPoint
+        
+    def setEndPointFunc(self, epFunc):
+        self.ep_func = epFunc
     
     def prepParams(self): 
         self._parse_adj_file(_params["fishnet:file"])
@@ -954,7 +964,10 @@ class topoFishnet(Topo):
             _params["diameter2:subnet"] = i
             subnet = topoDiameter2()
             subnet.prepParams()
-            subnet.setEndPoint(self.end_point)
+            if self.end_point:
+                subnet.setEndPoint(self.end_point)
+            else:
+                subnet.setEndPointFunc(self.ep_func)
             subnet.router_start_id = router_num
             subnet.host_start_id = nic_num
             subnet.build()
