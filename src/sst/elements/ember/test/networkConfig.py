@@ -122,3 +122,70 @@ class DragonFly2Info(TopoInfo):
 
 	def getNumNodes(self):
 		return self.numNodes 
+        
+        
+class Diameter2Info(TopoInfo):
+	def __init__(self, config):
+		self.params = {}
+		radix, hosts = [int(p) for p in config.split(':')]
+		self.file_name = "netlists/MMS.%d.adj.txt" % radix
+		self.hosts_per_router = hosts 
+		self.routers_per_net = 0
+		self.local_ports = 0 
+		self._parse_adj_file(self.file_name)
+		self.numNodes = self.hosts_per_router * self.routers_per_net
+		self.params.update({
+			"topology": "merlin.diameter2",
+			"num_vns": 1,
+			"diameter2:file": self.file_name,
+			"diameter2:hosts_per_router": self.hosts_per_router,
+			"diameter2:interconnect": "none",
+			"diameter2:algorithm": "minimal"
+		})
+
+	def _parse_adj_file(self, file_name):
+		with open(file_name, "r") as fp:
+			first_line = next(fp)
+			num_nodes, num_links = first_line.rstrip().split(" ")
+			num_nodes = int(num_nodes)
+			num_links = int(num_links)
+			self.routers_per_net = num_nodes
+			self.local_ports = num_links * 2 / num_nodes
+			fp.close()
+
+	def getNetworkParams(self):
+		return self.params
+
+	def getNumNodes(self):
+		return self.numNodes
+
+        
+class FishnetInfo(Diameter2Info):
+    def __init__(self, config):
+        Diameter2Info.__init__(self, config)
+        del self.params
+        self.params = {
+            "topology": "merlin.diameter2",
+            "num_vns": 1,
+            "fishnet:file": self.file_name,
+            "fishnet:hosts_per_router": self.hosts_per_router,
+            "diameter2:algorithm": "minimal"
+        }
+        self.numNodes *= (self.numNodes + 1)
+        print self.numNodes
+        print self.params
+
+        
+class FishliteInfo(Diameter2Info):
+    def __init__(self, config):
+        Diameter2Info.__init__(self, config)
+        del self.params
+        self.params = {
+            "topology": "merlin.diameter2",
+            "num_vns": 1,
+            "fishlite:file": self.file_name,
+            "fishlite:hosts_per_router": self.hosts_per_router,
+            "diameter2:algorithm": "minimal"
+        }
+        self.numNodes *= (self.numNodes + 1)   
+        

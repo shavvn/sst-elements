@@ -222,6 +222,18 @@ elif "dragonfly2" == netTopo:
 	topoInfo = DragonFly2Info(netShape)
 	topo = topoDragonFly2()
 
+elif "diameter2" == netTopo:
+    topoInfo = Diameter2Info(netShape)
+    topo = topoDiameter2()
+    
+elif "fishnet" == netTopo:
+    topoInfo = FishnetInfo(netShape)
+    topo = topoFishnet()
+    
+elif "fishlite" == netTopo:
+    topoInfo = FishliteInfo(netShape)
+    topo = topoFishlite()
+
 else:
 	sys.exit("how did we get here")
 
