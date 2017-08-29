@@ -65,6 +65,10 @@
 #include "membackend/goblinHMCBackend.h"
 #endif
 
+#ifdef HAVE_LIBDRAMCORE
+#include "membackend/dummySimBackend.h"
+#endif
+
 #ifdef HAVE_LIBRAMULATOR
 #include "membackend/ramulatorBackend.h"
 #endif
@@ -1068,6 +1072,25 @@ static const ElementInfoParam requestReorderRow_params[] = {
 
 
 /*****************************************************************************************
+ *  SubComponent: DummySim
+ *  Purpose: dummy memory simulator
+ *****************************************************************************************/
+#if defined(HAVE_LIBDRAMCORE)
+static SubComponent* create_Mem_DummySim(Component* comp, Params& params){
+    // cout << "will this work? dummy.." <<< std::endl
+    return new DummySimMemory(comp, params);
+}
+
+
+static const ElementInfoParam DummySimMem_params[] = {
+    {"verbose",          "Sets the verbosity of the backend output", "0" },
+    {"config_ini",      "Config file", NULL},
+    {NULL, NULL, NULL}
+};
+
+#endif
+
+/*****************************************************************************************
  *  SubComponent: ramulatorMemory
  *  Purpose: Memory backend, interface to Ramulator 
  *****************************************************************************************/
@@ -1565,6 +1588,17 @@ static const ElementInfoSubComponent subcomponents[] = {
         NULL,
         "SST::MemHierarchy::MemBackend"
     },
+#if defined(HAVE_LIBDRAMCORE)
+    {
+        "dummysim",
+        "Dummy memory simulator driven memory timings",
+        NULL, /* Advanced help */
+        create_Mem_DummySim, /* alloc subcomponent */
+        DummySimMem_params,
+        NULL, /* stats */
+        "SST::MemHierarchy::MemBackend"
+    },
+#endif
 #if defined(HAVE_LIBRAMULATOR)
     {
         "ramulator",

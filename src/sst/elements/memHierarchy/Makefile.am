@@ -169,6 +169,15 @@ nobase_sst_HEADERS = \
 libmemHierarchy_la_LDFLAGS = -module -avoid-version
 libmemHierarchy_la_LIBADD = 
 
+if HAVE_DRAMCORE
+libmemHierarchy_la_LDFLAGS += $(DRAMCORE_LDFLAGS)
+libmemHierarchy_la_LIBADD += $(DRAMCORE_LIB)
+libmemHierarchy_la_SOURCES += membackend/dummySimBackend.cc \
+	membackend/dummySimBackend.h
+nobase_sst_HEADERS += membackend/dummySimBackend.h
+AM_CPPFLAGS += $(DRAMCORE_CPPFLAGS) -DHAVE_LIBDRAMCORE
+endif
+
 if HAVE_RAMULATOR
 libmemHierarchy_la_LDFLAGS += $(RAMULATOR_LDFLAGS)
 libmemHierarchy_la_LIBADD += $(RAMULATOR_LIB)
@@ -231,6 +240,7 @@ endif
 AM_CPPFLAGS += $(HMC_FLAG)
 
 install-exec-hook:
+	$(SST_REGISTER_TOOL) DRAMCORE LIBDIR=$(DRAMCORE_LIBDIR)
 	$(SST_REGISTER_TOOL) DRAMSIM LIBDIR=$(DRAMSIM_LIBDIR)
 	$(SST_REGISTER_TOOL) HYBRIDSIM LIBDIR=$(HYBRIDSIM_LIBDIR)
 	$(SST_REGISTER_TOOL) NVDIMMSIM LIBDIR=$(NVDIMMSIM_LIBDIR)
