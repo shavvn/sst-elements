@@ -33,12 +33,12 @@ DummySimMemory::DummySimMemory(Component *comp, Params &params) :
 
 bool DummySimMemory::issueRequest(ReqId id, Addr addr, bool isWrite, unsigned ){
     bool ok = memSystem->InsertReq(addr, isWrite);
-    
+    if (!ok) return false; 
 #ifdef __SST_DEBUG_OUTPUT__
     output->debug(_L10_, "Issued transaction for address %" PRIx64 "\n", (Addr)addr);
 #endif
     dramReqs[addr].push_back(id);
-    return true;
+    return ok;
 }
 
 
